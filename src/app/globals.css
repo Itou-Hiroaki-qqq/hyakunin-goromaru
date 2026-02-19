@@ -1,0 +1,20 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 縦書き（百人一首札用） */
+.writing-vertical {
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+}
+/* 畳風背景用 */
+.bg-tatami {
+  background-color: #c4b896;
+  background-image: repeating-linear-gradient(
+    90deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.03) 2px,
+    rgba(0, 0, 0, 0.03) 4px
+  );
+}

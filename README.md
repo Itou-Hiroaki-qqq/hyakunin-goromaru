@@ -1,0 +1,106 @@
+# 百人一首 -ゴロでマル覚え- (hyakunin-goromaru)
+
+百人一首を語呂合わせで学習できるWebアプリです。
+
+## 技術スタック
+
+- **フロント**: Next.js 15 (App Router) + TypeScript + Tailwind CSS + DaisyUI
+- **認証**: Supabase Auth
+- **句データ**: Neon (PostgreSQL) + `@neondatabase/serverless` + 自前 API `/api/poems`
+- **音声**: Howler.js（Neon の `kami_audio_url` / `shimo_audio_url` / `kami_goro_audio_url` / `shimo_goro_audio_url` を再生）
+
+## セットアップ（ステップバイステップ）
+
+### 1. 依存関係
+
+```bash
+npm install
+```
+
+### 2. 環境変数
+
+プロジェクト直下に `.env.local` を作成し、以下を設定してください。
+
+```env
+# Neon PostgreSQL（句データ用）
+DATABASE_URL=postgresql://ユーザー:パスワード@ホスト/DB名?sslmode=require
+
+# Supabase（認証用）
+NEXT_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+```
+
+- **DATABASE_URL**: Neon のダッシュボードで「Connection string」をコピーして貼り付け。
+- **Supabase**: [Supabase](https://supabase.com) でプロジェクト作成後、Settings → API の「Project URL」と「anon public」キーをコピー。
+
+### 3. Neon のテーブル
+
+句データは `poems` テーブルに格納されている想定です。  
+別プロジェクト（hyakunin-tts）の `import-to-neon.js` で CSV から投入済みであれば、そのまま利用できます。
+
+### 4. 開発サーバー
+
+```bash
+npm run dev
+```
+
+ブラウザで [http://localhost:3000](http://localhost:3000) を開きます。
+
+### 5. 音声再生と CORS（R2 の場合）
+
+音声ファイルを Cloudflare R2 で配信している場合、ブラウザから直接 R2 の URL を読みに行くため **CORS 設定**が必要です。
+
+- **症状**: 「始める」を押すとひらがなは出るがその先に進まない／コンソールに `Access-Control-Allow-Origin` の CORS エラーが出る。
+- **対処**: R2 バケットに CORS ポリシーを設定する。
+
+**Cloudflare ダッシュボードでの手順（概要）**
+
+1. Cloudflare ダッシュボード → **R2** → 対象のバケットを選択
+2. **設定** → **CORS ポリシー** で以下を追加（開発時は `*` でも可）
+
+例（開発・本番どちらからも読む場合）:
+
+```json
+[
+  {
+    "AllowedOrigins": ["http://localhost:3000", "https://あなたの本番ドメイン"],
+    "AllowedMethods": ["GET", "HEAD"],
+    "AllowedHeaders": ["*"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+- 開発だけなら `"AllowedOrigins": ["http://localhost:3000"]` のみでよいです。
+- 設定後、音声が読み込めるようになると、学習の自動再生が最後まで進み、音声も鳴ります。
+
+CORS を設定するまででも **学習の流れは止まらない**ようにしてあります（音声読み込み失敗または約8秒で次へ進みます）。
+
+## 実装済み（今回の範囲）
+
+1. **プロジェクト立ち上げ** - Next.js App Router + TypeScript + Tailwind + DaisyUI
+2. **API** - `GET /api/poems`（Neon serverless 使用。`?from=1&to=4` や `?from=1&to=100` で範囲指定可）
+3. **新規登録** - `/register`（Supabase Auth）
+4. **ログイン** - `/login`
+5. **トップ** - `/`（タイトル・学習スタート・復習ボタン、フッターのみ）
+6. **学習リスト** - `/learn`（「1～4首」ブロックのみ。展開で「学習」「4首でテスト」）
+7. **1～4首の学習** - `/learn/1-4/study`
+   - **学習**: 漢字表示 → 「始める」で自動再生。上の句ひらがな1文字ずつ＋上の句音声 → 下の句ひらがな1文字ずつ＋下の句音声 → 語呂部分を赤＋語呂音声 → 語呂の意味＋語呂音声 → 「練習へ」
+   - **練習**: 上の句（ひらがな）を縦書き札で表示、上の句音声の自動再生、語呂を赤表示。4択は正解（下の句ひらがな）＋残り99首からランダム3首。〇×表示・「学習に戻る」あり。
+8. **4首でテスト** - `/learn/1-4/test`（上の句＋音声＋語呂赤。選択肢は正解＋同セクション残り3首の下の句ひらがな。縦書き札・畳風背景・〇×）
+
+## メタ
+
+- `title`: 百人一首 -ゴロでマル覚え-
+- `robots`: noindex, nofollow 設定済み
+
+## 素材について（任意）
+
+- **畳背景**: 現在は CSS の `bg-tatami` で簡易表現しています。いらすとや・O-DAN・Pixabay 等の画像に差し替える場合は `src/components/QuizCard.tsx` や `globals.css` の `.bg-tatami` を変更してください。
+- **〇・×**: 現在は文字（〇/×）で表示しています。画像にしたい場合は `src/components/QuizCard.tsx` の `ChoiceCard` 内の `result === "correct"` / `"wrong"` の部分を `<img>` に差し替えてください。
+
+## 次のステップ（続きの指示で実装予定）
+
+- 5～8首以降の学習リスト
+- 8首・16首などのまとめテスト
+- 復習ページ（間違えた問題の記録・復習）
