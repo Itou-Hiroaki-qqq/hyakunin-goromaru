@@ -7,6 +7,7 @@ import type { Poem } from "@/types/poem";
 import { playOnce, stopAll } from "@/lib/audio";
 import { findGoroRange } from "@/lib/goro";
 import { parseRange } from "@/lib/range";
+import { addToReviewList } from "@/lib/reviewStorage";
 import { PoemCard, ChoiceCard } from "@/components/QuizCard";
 
 function shuffle<T>(arr: T[]): T[] {
@@ -31,6 +32,7 @@ export default function TestRangePage() {
   const [clickedWrong, setClickedWrong] = useState<string[]>([]);
   const [selectedCorrect, setSelectedCorrect] = useState(false);
   const [score, setScore] = useState(0);
+  const [perfectScore, setPerfectScore] = useState(0); // 一発正解数
   const lastPlayedQRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -66,8 +68,46 @@ export default function TestRangePage() {
   const isSummaryTest = range ? range.from === 1 && range.to > 4 : false;
 
   useEffect(() => {
-    if (finished && poems.length > 0) stopAll();
-  }, [finished, poems.length]);
+    if (finished && poems.length > 0 && range) {
+      stopAll();
+      // 最後の1問で間違えていたら復習に追加（handleNext は最後の1問では呼ばれないため）
+      if (current && clickedWrong.length > 0) {
+        addToReviewList({
+          type: "range",
+          poemId: current.id,
+          range: `${range.from}-${range.to}`,
+        });
+      }
+      // 全問一発正解ならクリア状態を保存
+      if (perfectScore === poems.length) {
+        const from = range.from;
+        const to = range.to;
+        const is4Test = to - from + 1 === 4;
+        const is8Test = to - from + 1 === 8;
+        const isSummary = from === 1 && to > 4;
+        
+        let testType = "";
+        if (isSummary) {
+          testType = "まとめ";
+        } else if (is8Test) {
+          testType = "8首";
+        } else if (is4Test) {
+          testType = "4首";
+        }
+        
+        if (testType) {
+          fetch("/api/test-clears", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              testType,
+              range: `${from}-${to}`,
+            }),
+          }).catch((err) => console.error("クリア状態の保存に失敗:", err));
+        }
+      }
+    }
+  }, [finished, poems.length, perfectScore, range, current?.id, clickedWrong.length]);
 
   useEffect(() => {
     if (!current || poems.length === 0) return;
@@ -95,12 +135,23 @@ export default function TestRangePage() {
     if (answer === current?.shimo_hiragana) {
       setSelectedCorrect(true);
       setScore((s) => s + 1);
+      // 一発正解（×がついていない）ならカウント
+      if (clickedWrong.length === 0) {
+        setPerfectScore((s) => s + 1);
+      }
     } else if (!clickedWrong.includes(answer)) {
       setClickedWrong((prev) => [...prev, answer]);
     }
   };
 
   const handleNext = () => {
+    if (current && clickedWrong.length > 0 && range) {
+      addToReviewList({
+        type: "range",
+        poemId: current.id,
+        range: `${range.from}-${range.to}`,
+      });
+    }
     if (currentQ >= poems.length - 1) return;
     setCurrentQ((q) => q + 1);
   };

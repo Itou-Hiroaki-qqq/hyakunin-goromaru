@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { Poem } from "@/types/poem";
 import { playOnce, stopAll } from "@/lib/audio";
 import { findGoroRange } from "@/lib/goro";
+import { addToReviewList } from "@/lib/reviewStorage";
 import { PoemCard, ChoiceCard } from "@/components/QuizCard";
 
 function shuffle<T>(arr: T[]): T[] {
@@ -50,8 +51,25 @@ export default function AllTestPage() {
   const finished = selectedCorrect && currentQ >= poems.length - 1;
 
   useEffect(() => {
-    if (finished && poems.length > 0) stopAll();
-  }, [finished, poems.length]);
+    if (finished && poems.length > 0) {
+      stopAll();
+      // 最後の1問で間違えていたら復習に追加（handleNext は最後の1問では呼ばれないため）
+      if (current && clickedWrong.length > 0) {
+        addToReviewList({ type: "all", poemId: current.id });
+      }
+      // 全問一発正解ならクリア状態を保存
+      if (perfectScore === poems.length) {
+        fetch("/api/test-clears", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            testType: "100首",
+            range: "all",
+          }),
+        }).catch((err) => console.error("クリア状態の保存に失敗:", err));
+      }
+    }
+  }, [finished, poems.length, perfectScore, current?.id, clickedWrong.length]);
 
   useEffect(() => {
     if (!current || poems.length === 0) return;
@@ -90,6 +108,9 @@ export default function AllTestPage() {
   };
 
   const handleNext = () => {
+    if (current && clickedWrong.length > 0) {
+      addToReviewList({ type: "all", poemId: current.id });
+    }
     if (currentQ >= poems.length - 1) return;
     setCurrentQ((q) => q + 1);
   };
