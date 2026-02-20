@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import type { Poem } from "@/types/poem";
 import { playOnce, playSequence, stopAll } from "@/lib/audio";
 import { findGoroRange } from "@/lib/goro";
+import { parseRange } from "@/lib/range";
 import { PoemCard, ChoiceCard } from "@/components/QuizCard";
 
 const CHAR_DELAY_MS = 120;
@@ -20,7 +22,10 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-export default function Study1_4Page() {
+export default function StudyRangePage() {
+  const params = useParams();
+  const range = parseRange(params.range as string | undefined);
+
   const [poems, setPoems] = useState<Poem[]>([]);
   const [allPoems, setAllPoems] = useState<Poem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,24 +42,32 @@ export default function Study1_4Page() {
 
   const current = poems[poemIndex];
   const isLast = poemIndex === poems.length - 1;
+  const rangeLabel = range ? `${range.from}-${range.to}` : "";
 
   useEffect(() => {
     return () => { stopAll(); };
   }, []);
 
+  const rangeKey = typeof params.range === "string" ? params.range : "";
   useEffect(() => {
+    if (!range) {
+      setLoading(false);
+      setError("範囲が不正です");
+      return;
+    }
+    const { from, to } = range;
     Promise.all([
-      fetch("/api/poems?from=1&to=4").then((r) => (r.ok ? r.json() : Promise.reject(new Error("1-4 failed")))),
+      fetch(`/api/poems?from=${from}&to=${to}`).then((r) => (r.ok ? r.json() : Promise.reject(new Error(`${from}-${to} failed`)))),
       fetch("/api/poems?from=1&to=100").then((r) => (r.ok ? r.json() : [])),
     ])
-      .then(([four, all]: [Poem[], Poem[]]) => {
-        setPoems(four);
-        setAllPoems(Array.isArray(all) && all.length >= 4 ? all : four);
+      .then(([section, all]: [Poem[], Poem[]]) => {
+        setPoems(section);
+        setAllPoems(Array.isArray(all) && all.length >= section.length ? all : section);
         setError("");
       })
       .catch((err) => {
         setError(err.message || "取得に失敗しました");
-        fetch("/api/poems?from=1&to=4")
+        fetch(`/api/poems?from=${from}&to=${to}`)
           .then((r) => (r.ok ? r.json() : []))
           .then((data: Poem[]) => {
             if (data.length) setPoems(data);
@@ -63,7 +76,7 @@ export default function Study1_4Page() {
           .finally(() => setLoading(false));
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [rangeKey]);
 
   const runLearnSequence = useCallback(async () => {
     if (!current || playingRef.current) return;
@@ -129,26 +142,28 @@ export default function Study1_4Page() {
   }, [learnStep, current, runLearnSequence]);
 
   const practiceAudioPlayed = useRef(false);
+  const practicePoemIdRef = useRef<number | null>(null);
   useEffect(() => {
-    if (phase === "practice" && current && allPoems.length > 0) {
-      const others = allPoems.filter((p) => p.id !== current.id);
-      const wrong = shuffle(others)
-        .slice(0, 3)
-        .map((p) => p.shimo_hiragana);
-      const four = shuffle([current.shimo_hiragana, ...wrong]);
-      setChoices(four);
-      setClickedWrong([]);
-      setSelectedCorrect(false);
-      practiceAudioPlayed.current = false;
-    }
-  }, [phase, poemIndex, current, allPoems]);
+    if (phase !== "practice" || !current || allPoems.length === 0) return;
+    if (practicePoemIdRef.current === current.id) return;
+    practicePoemIdRef.current = current.id;
+    const others = allPoems.filter((p) => p.id !== current.id);
+    const wrong = shuffle(others)
+      .slice(0, 3)
+      .map((p) => p.shimo_hiragana);
+    const four = shuffle([current.shimo_hiragana, ...wrong]);
+    setChoices(four);
+    setClickedWrong([]);
+    setSelectedCorrect(false);
+    practiceAudioPlayed.current = false;
+  }, [phase, poemIndex, current?.id, allPoems.length]);
 
   useEffect(() => {
     if (phase !== "practice" || !current?.kami_audio_url) return;
     if (practiceAudioPlayed.current) return;
     practiceAudioPlayed.current = true;
     playOnce(current.kami_audio_url);
-  }, [phase, current]);
+  }, [phase, current?.id, current?.kami_audio_url]);
 
   const handleStartLearn = () => {
     setLearnStep(1);
@@ -178,6 +193,17 @@ export default function Study1_4Page() {
     setKamiVisibleLen(0);
     setShimoVisibleLen(0);
   };
+
+  if (!range) {
+    return (
+      <div className="container max-w-2xl mx-auto p-6">
+        <p className="text-error mb-4">範囲が不正です</p>
+        <Link href="/learn" className="btn btn-outline">
+          学習リストへ戻る
+        </Link>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -214,7 +240,7 @@ export default function Study1_4Page() {
     return (
       <div className="min-h-[60vh] p-6 bg-tatami">
         <p className="text-sm text-base-content/60 mb-2">
-          {poemIndex + 1} / 4 首目（練習）
+          {current.id}首目（練習）
         </p>
         <div className="max-w-2xl mx-auto">
           <p className="text-center text-lg mb-4">上の句（ひらがな）の続きはどれ？</p>
@@ -258,8 +284,8 @@ export default function Study1_4Page() {
             {selectedCorrect &&
               (isLast ? (
                 <>
-                  <Link href="/learn/1-4/test" className="btn btn-primary">
-                    4首でテストへ
+                  <Link href={`/learn/${rangeLabel}/test`} className="btn btn-primary">
+                    {poems.length}首でテストへ
                   </Link>
                   <Link href="/learn" className="btn btn-outline">
                     学習リストへ戻る
@@ -318,7 +344,7 @@ export default function Study1_4Page() {
   return (
     <div className="container max-w-2xl mx-auto p-6">
       <p className="text-sm text-base-content/60 mb-2">
-        {poemIndex + 1} / 4 首目（学習）
+        {current.id}首目（学習）
       </p>
       <div className="card bg-base-200 shadow-xl">
         <div className="card-body">
