@@ -65,6 +65,11 @@ export default function Header() {
               </Link>
             </li>
             <li>
+              <Link href="/learn/tricky" onClick={() => setOpen(false)}>
+                間違えやすい問題
+              </Link>
+            </li>
+            <li>
               <Link href="/review" onClick={() => setOpen(false)}>
                 復習ページ
               </Link>

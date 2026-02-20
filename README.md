@@ -38,6 +38,19 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 句データは `poems` テーブルに格納されている想定です。  
 別プロジェクト（hyakunin-tts）の `import-to-neon.js` で CSV から投入済みであれば、そのまま利用できます。
 
+**クリア状態保存用テーブルの作成**
+
+学習リストの星マーク機能を使用するには、`user_test_clears` テーブルを作成してください。
+
+1. Neon のダッシュボードで SQL Editor を開く
+2. 以下の SQL を実行：
+
+```sql
+-- sql/create_user_test_clears.sql の内容をコピー＆ペースト
+```
+
+または、プロジェクト直下の `sql/create_user_test_clears.sql` ファイルの内容を Neon の SQL Editor で実行してください。
+
 ### 4. 開発サーバー
 
 ```bash

@@ -4,20 +4,17 @@ import { ReactNode } from "react";
 import { splitToLines } from "@/lib/formatLines";
 
 /**
- * スペース区切りで各行の開始位置（元テキストのインデックス）を返す
+ * 実際に表示する各行の、元テキスト（fullText）内での開始位置を返す。
+ * splitToLines がスペースなしで文字数折り返しした場合も、正しく1箇所だけハイライトするために必要。
  */
-const SPACE_REGEX = /[\s\u3000]+/;
-
-function getLineStarts(text: string, maxLines: number): number[] {
-  const parts = text.split(SPACE_REGEX).filter(Boolean);
+function getLineStarts(fullText: string, lines: string[]): number[] {
   const starts: number[] = [];
-  let idx = 0;
-  for (let i = 0; i < maxLines && i < parts.length; i++) {
-    starts.push(idx);
-    idx += parts[i].length;
-    while (idx < text.length && /[\s\u3000]/.test(text[idx])) idx++;
+  let pos = 0;
+  for (let i = 0; i < lines.length; i++) {
+    starts.push(pos);
+    pos += lines[i].length;
+    while (pos < fullText.length && /[\s\u3000]/.test(fullText[pos])) pos++;
   }
-  if (starts.length === 0) starts.push(0);
   return starts;
 }
 
@@ -41,7 +38,7 @@ function VerticalLines({
 }) {
   const lineStarts =
     highlightRange != null && fullText != null && fullText.length > 0 && lines.length > 0
-      ? getLineStarts(fullText, lines.length)
+      ? getLineStarts(fullText, lines)
       : null;
 
   return (
@@ -142,12 +139,14 @@ export function ChoiceCard({
   disabled,
   result,
   lines: linesProp,
+  highlightRange,
 }: {
   text: string;
   onClick: () => void;
   disabled: boolean;
   result: null | "correct" | "wrong";
   lines?: string[];
+  highlightRange?: { start: number; length: number };
 }) {
   const lines = linesProp ?? splitToLines(text, 2);
 
@@ -159,7 +158,13 @@ export function ChoiceCard({
       className="relative bg-amber-50 border-2 border-amber-200 rounded-lg shadow-md p-4 min-h-[100px] flex items-center justify-center hover:border-amber-400 hover:bg-amber-100 disabled:pointer-events-none transition-colors"
     >
       <div className="w-full flex items-center justify-center">
-        <VerticalLines lines={lines} lineGap className="text-base" />
+        <VerticalLines
+          lines={lines}
+          lineGap
+          className="text-base"
+          highlightRange={highlightRange}
+          fullText={text}
+        />
       </div>
       {result === "correct" && (
         <span className="absolute inset-0 flex items-center justify-center text-5xl text-green-600 font-bold bg-black/10 rounded-lg">
