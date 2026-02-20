@@ -21,10 +21,10 @@ export default function LearnListPage() {
         {BLOCKS.map(({ from, to, key }) => {
           const isOpen = openKey === key;
           const blockIndex = Math.ceil(from / 4); // 1-based: 1～25（1-4→1, 5-8→2, ...）
-          const has8Test = blockIndex >= 2 && blockIndex % 2 === 0; // 2,4,6,...,24 → 前回も入れて8首でテスト
+          const has8Test = (blockIndex >= 2 && blockIndex % 2 === 0) || blockIndex === 25; // 2,4,6,...,24,25 → 前回も入れて8首でテスト
           const hasSummaryTest = blockIndex >= 4 && blockIndex % 2 === 0; // 4,6,...,24 → ここまでのまとめテスト
-          const from8 = has8Test ? 4 * blockIndex - 7 : 0;
-          const to8 = has8Test ? 4 * blockIndex : 0;
+          const from8 = has8Test ? (blockIndex === 25 ? 93 : 4 * blockIndex - 7) : 0;
+          const to8 = has8Test ? (blockIndex === 25 ? 100 : 4 * blockIndex) : 0;
           const toSummary = hasSummaryTest ? 4 * blockIndex : 0;
 
           return (
@@ -80,6 +80,24 @@ export default function LearnListPage() {
             </div>
           );
         })}
+        
+        {/* 100首ぜんぶテスト */}
+        <div className="border border-base-300 rounded-xl overflow-hidden mt-2">
+          <Link
+            href="/learn/all/test"
+            className="w-full flex items-center justify-between p-4 bg-base-200 hover:bg-base-300 text-left font-medium"
+          >
+            <span>100首ぜんぶテスト</span>
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </Link>
+        </div>
       </div>
     </div>
   );
