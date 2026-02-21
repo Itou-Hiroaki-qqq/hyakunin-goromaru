@@ -41,9 +41,16 @@ function setStored(items: ReviewItem[]) {
 
 /** 同一問題のキー（重複追加防止用） */
 function itemKey(item: Omit<ReviewItem, "id">): string {
-  if (item.type === "range") return `range:${item.poemId}:${item.range}`;
-  if (item.type === "all") return `all:${item.poemId}`;
-  return `${item.type}:${item.poemId}:${item.choicePoemIds.join(",")}`;
+  switch (item.type) {
+    case "range":
+      return `range:${item.poemId}:${(item as unknown as { range: string }).range}`;
+    case "all":
+      return `all:${item.poemId}`;
+    default: {
+      const t = item as unknown as { type: string; poemId: number; choicePoemIds: number[] };
+      return `${t.type}:${t.poemId}:${t.choicePoemIds.join(",")}`;
+    }
+  }
 }
 
 export function getReviewList(): ReviewItem[] {

@@ -6,7 +6,7 @@ import type { Poem } from "@/types/poem";
 import { playOnce, playSequence, stopAll } from "@/lib/audio";
 import { findGoroRange } from "@/lib/goro";
 import { SHIMO_TRICKY_SETS } from "@/data/tricky-questions";
-import { addToReviewList } from "@/lib/reviewStorage";
+import { addToReviewList, type ReviewItem } from "@/lib/reviewStorage";
 import { PoemCard, ChoiceCard } from "@/components/QuizCard";
 
 function shuffle<T>(arr: T[]): T[] {
@@ -142,7 +142,7 @@ export default function ShimoTrickyTestPage() {
         type: "shimo_tricky",
         poemId: currentQuestion.correctPoemId,
         choicePoemIds: currentQuestion.choicePoemIds,
-      });
+      } as Omit<ReviewItem, "id">);
     }
     if (isLastQuestion) {
       setFirstTryResults((prev) => [...prev, firstTryCorrect]);

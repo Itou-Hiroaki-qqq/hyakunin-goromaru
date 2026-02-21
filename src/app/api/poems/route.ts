@@ -49,7 +49,7 @@ export async function GET(request: Request) {
       shimo_goro_audio_url: string;
     };
 
-    const rows: Row[] = hasRange
+    const rows = (hasRange
       ? await sql`
           SELECT id, kami, shimo, kami_hiragana, shimo_hiragana,
                  kami_tts, shimo_tts, kami_goro_tts, shimo_goro_tts,
@@ -68,7 +68,7 @@ export async function GET(request: Request) {
                  kami_goro_audio_url, shimo_goro_audio_url
           FROM poems
           ORDER BY id ASC
-        `;
+        `) as Row[];
 
     return rows.map((row) => ({
       id: row.id,

@@ -7,7 +7,7 @@ import type { Poem } from "@/types/poem";
 import { playOnce, playSequence, stopAll } from "@/lib/audio";
 import { findGoroRange } from "@/lib/goro";
 import { parseRange } from "@/lib/range";
-import { addToReviewList } from "@/lib/reviewStorage";
+import { addToReviewList, type ReviewItem } from "@/lib/reviewStorage";
 import { PoemCard, ChoiceCard } from "@/components/QuizCard";
 
 function shuffle<T>(arr: T[]): T[] {
@@ -88,7 +88,7 @@ export default function TestRangePage() {
           type: "range",
           poemId: current.id,
           range: `${range.from}-${range.to}`,
-        });
+        } as Omit<ReviewItem, "id">);
       }
       // 全問一発正解ならクリア状態を保存
       if (perfectScore === poems.length) {
@@ -207,7 +207,7 @@ export default function TestRangePage() {
         type: "range",
         poemId: current.id,
         range: `${range.from}-${range.to}`,
-      });
+      } as Omit<ReviewItem, "id">);
     }
     if (isLastQuestion) {
       setShowResult(true);
