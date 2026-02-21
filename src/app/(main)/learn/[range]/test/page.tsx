@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import type { Poem } from "@/types/poem";
-import { playOnce, stopAll } from "@/lib/audio";
+import { playOnce, playSequence, stopAll } from "@/lib/audio";
 import { findGoroRange } from "@/lib/goro";
 import { parseRange } from "@/lib/range";
 import { addToReviewList } from "@/lib/reviewStorage";
@@ -18,6 +18,8 @@ function shuffle<T>(arr: T[]): T[] {
   }
   return a;
 }
+
+let goroRunInProgress = false;
 
 export default function TestRangePage() {
   const params = useParams();
@@ -34,9 +36,18 @@ export default function TestRangePage() {
   const [score, setScore] = useState(0);
   const [perfectScore, setPerfectScore] = useState(0); // 一発正解数
   const lastPlayedQRef = useRef<number | null>(null);
+  const [showGoro, setShowGoro] = useState(false);
+  const [goroPlayKey, setGoroPlayKey] = useState(0);
+  const [goroHighlightPhase, setGoroHighlightPhase] = useState<"none" | "kami" | "shimo">("none");
+  const currentGoroPoemIdRef = useRef<number | null>(null);
+  const lastGoroPlayKeyRef = useRef<number>(-1);
+  const [showResult, setShowResult] = useState(false);
 
   useEffect(() => {
-    return () => { stopAll(); };
+    return () => {
+      stopAll();
+      goroRunInProgress = false;
+    };
   }, []);
 
   const rangeKey = typeof params.range === "string" ? params.range : "";
@@ -63,15 +74,16 @@ export default function TestRangePage() {
 
   const poemIndex = order[currentQ];
   const current = poemIndex != null ? poems[poemIndex] : null;
-  const finished = selectedCorrect && currentQ >= poems.length - 1;
+  const isLastQuestion = currentQ >= poems.length - 1;
+  const finished = showResult;
   const rangeLabel = range ? `${range.from}-${range.to}` : "";
   const isSummaryTest = range ? range.from === 1 && range.to > 4 : false;
 
   useEffect(() => {
-    if (finished && poems.length > 0 && range) {
+    if (finished && poems.length > 0 && range && current) {
       stopAll();
-      // 最後の1問で間違えていたら復習に追加（handleNext は最後の1問では呼ばれないため）
-      if (current && clickedWrong.length > 0) {
+      // 最後の1問で間違えていたら復習に追加
+      if (clickedWrong.length > 0) {
         addToReviewList({
           type: "range",
           poemId: current.id,
@@ -107,10 +119,13 @@ export default function TestRangePage() {
         }
       }
     }
-  }, [finished, poems.length, perfectScore, range, current?.id, clickedWrong.length]);
+  }, [finished, poems.length, perfectScore, range, current?.id, clickedWrong.length, current]);
 
   useEffect(() => {
     if (!current || poems.length === 0) return;
+    currentGoroPoemIdRef.current = current.id;
+    goroRunInProgress = false;
+    lastGoroPlayKeyRef.current = -1;
     const others = poems.filter((p) => p.id !== current.id);
     const wrong = others.map((p) => ({ text: p.shimo_hiragana, poemId: p.id }));
     const four = shuffle([
@@ -120,7 +135,43 @@ export default function TestRangePage() {
     setChoices(four);
     setClickedWrong([]);
     setSelectedCorrect(false);
+    setShowGoro(false);
+    setGoroPlayKey(0);
+    setGoroHighlightPhase("none");
+    setShowResult(false);
   }, [currentQ, poems.length, current?.id]);
+
+  useEffect(() => {
+    if (!showGoro || !current || goroPlayKey <= 0) return;
+    if (!selectedCorrect) return;
+    if (goroRunInProgress) return;
+    if (lastGoroPlayKeyRef.current === goroPlayKey) return;
+    lastGoroPlayKeyRef.current = goroPlayKey;
+    goroRunInProgress = true;
+    const poemId = current.id;
+    setGoroHighlightPhase("kami");
+    const run = async () => {
+      try {
+        if (currentGoroPoemIdRef.current !== poemId) return;
+        if (current.kami_goro_audio_url) await playOnce(current.kami_goro_audio_url);
+        if (currentGoroPoemIdRef.current !== poemId) return;
+        setGoroHighlightPhase("shimo");
+        if (current.shimo_goro_audio_url) await playOnce(current.shimo_goro_audio_url);
+      } finally {
+        goroRunInProgress = false;
+      }
+    };
+    run();
+  }, [goroPlayKey, showGoro, current?.id, selectedCorrect]);
+
+  useEffect(() => {
+    if (!showGoro || !current || goroPlayKey <= 0) return;
+    if (selectedCorrect) return;
+    const urls: string[] = [];
+    if (current.kami_goro_audio_url) urls.push(current.kami_goro_audio_url);
+    if (current.shimo_goro_audio_url) urls.push(current.shimo_goro_audio_url);
+    if (urls.length > 0) playSequence(urls);
+  }, [goroPlayKey, showGoro, current, selectedCorrect]);
 
   useEffect(() => {
     if (!current?.kami_audio_url || poems.length === 0) return;
@@ -132,19 +183,25 @@ export default function TestRangePage() {
 
   const handleAnswer = (answer: string) => {
     if (selectedCorrect) return;
+    stopAll();
     if (answer === current?.shimo_hiragana) {
       setSelectedCorrect(true);
       setScore((s) => s + 1);
-      // 一発正解（×がついていない）ならカウント
+      setShowGoro(true);
+      setGoroPlayKey((k) => k + 1);
       if (clickedWrong.length === 0) {
         setPerfectScore((s) => s + 1);
       }
     } else if (!clickedWrong.includes(answer)) {
       setClickedWrong((prev) => [...prev, answer]);
+      setShowGoro(true);
+      setGoroPlayKey((k) => k + 1);
     }
   };
 
   const handleNext = () => {
+    stopAll();
+    goroRunInProgress = false;
     if (current && clickedWrong.length > 0 && range) {
       addToReviewList({
         type: "range",
@@ -152,7 +209,18 @@ export default function TestRangePage() {
         range: `${range.from}-${range.to}`,
       });
     }
-    if (currentQ >= poems.length - 1) return;
+    if (isLastQuestion) {
+      setShowResult(true);
+      return;
+    }
+    const nextIdx = order[currentQ + 1];
+    const nextPoem = nextIdx != null ? poems[nextIdx] : null;
+    if (nextPoem) currentGoroPoemIdRef.current = nextPoem.id;
+    setSelectedCorrect(false);
+    setClickedWrong([]);
+    setShowGoro(false);
+    setGoroPlayKey(0);
+    setGoroHighlightPhase("none");
     setCurrentQ((q) => q + 1);
   };
 
@@ -257,6 +325,10 @@ export default function TestRangePage() {
   if (!current) return null;
 
   const kamiGoroRange = findGoroRange(current.kami_hiragana, current.kami_goro);
+  const shimoGoroRange = findGoroRange(current.shimo_hiragana, current.shimo_goro);
+  const showKamiHighlight =
+    selectedCorrect && (goroHighlightPhase === "kami" || goroHighlightPhase === "shimo");
+  const showShimoHighlight = selectedCorrect && goroHighlightPhase === "shimo";
 
   return (
     <div className="min-h-[60vh] p-6 bg-tatami">
@@ -270,34 +342,48 @@ export default function TestRangePage() {
             text={current.kami_hiragana}
             variant="kami"
             highlightRange={
-              kamiGoroRange.length > 0 ? kamiGoroRange : undefined
+              showKamiHighlight && kamiGoroRange.length > 0 ? kamiGoroRange : undefined
             }
           />
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          {choices.map((item) => (
-            <ChoiceCard
-              key={`${item.poemId}-${item.text.slice(0, 8)}`}
-              text={item.text}
-              onClick={() => handleAnswer(item.text)}
-              disabled={selectedCorrect}
-              result={
-                selectedCorrect && item.text === current.shimo_hiragana
-                  ? "correct"
-                  : clickedWrong.includes(item.text)
-                    ? "wrong"
-                    : null
-              }
-            />
-          ))}
+          {choices.map((item) => {
+            const isCorrectChoice = item.text === current.shimo_hiragana;
+            const showShimoGoro = showShimoHighlight && isCorrectChoice;
+            const choiceShimoRange = showShimoGoro ? shimoGoroRange : undefined;
+            return (
+              <ChoiceCard
+                key={`${item.poemId}-${item.text.slice(0, 8)}`}
+                text={item.text}
+                onClick={() => handleAnswer(item.text)}
+                disabled={selectedCorrect}
+                result={
+                  selectedCorrect && isCorrectChoice
+                    ? "correct"
+                    : clickedWrong.includes(item.text)
+                      ? "wrong"
+                      : null
+                }
+                highlightRange={choiceShimoRange}
+              />
+            );
+          })}
         </div>
+        {showGoro && current.goro_kaisetsu && (
+          <div className="mt-4 p-4 rounded-xl bg-primary/10 border border-primary/30 mb-4">
+            <p className="text-xs font-medium text-base-content/60 mb-1">語呂の意味</p>
+            <p className="text-xl font-bold text-base-content">
+              {current.goro_kaisetsu}
+            </p>
+          </div>
+        )}
         {selectedCorrect && !finished && (
           <div className="flex justify-center gap-4">
             <Link href={`/learn/${rangeLabel}/study`} className="btn btn-ghost">
               学習に戻る
             </Link>
             <button type="button" className="btn btn-primary" onClick={handleNext}>
-              次の問題
+              {isLastQuestion ? "次へ" : "次の問題"}
             </button>
           </div>
         )}
