@@ -193,6 +193,12 @@ export default function KamiTrickyQuestionPage() {
   }
 
   if (finished) {
+    const currentIndex = KAMI_TRICKY_SETS.findIndex((s) => s.id === setId);
+    const isLastSet = currentIndex >= 0 && currentIndex === KAMI_TRICKY_SETS.length - 1;
+    const nextSet = currentIndex >= 0 && currentIndex < KAMI_TRICKY_SETS.length - 1
+      ? KAMI_TRICKY_SETS[currentIndex + 1]
+      : null;
+
     return (
       <div className="container max-w-2xl mx-auto p-6">
         <h2 className="text-2xl font-bold mb-4">結果</h2>
@@ -216,7 +222,16 @@ export default function KamiTrickyQuestionPage() {
           >
             もう一度学習する
           </button>
-          <Link href="/learn/tricky/kami" className="btn btn-primary">
+          {nextSet ? (
+            <Link href={`/learn/tricky/kami/${nextSet.id}`} className="btn btn-primary">
+              次へ
+            </Link>
+          ) : isLastSet ? (
+            <Link href="/learn/tricky/kami/test" className="btn btn-primary">
+              まとめテストへ進む
+            </Link>
+          ) : null}
+          <Link href="/learn/tricky/kami" className="btn btn-outline">
             戻る
           </Link>
         </div>
