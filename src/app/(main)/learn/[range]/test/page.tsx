@@ -210,6 +210,8 @@ export default function TestRangePage() {
       } as Omit<ReviewItem, "id">);
     }
     if (isLastQuestion) {
+      // 結果画面へ移るため、語呂再生の非同期 run() が続けて下の句を流さないようにする
+      currentGoroPoemIdRef.current = null;
       setShowResult(true);
       return;
     }

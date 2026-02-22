@@ -2,6 +2,9 @@ import { Howl, Howler } from "howler";
 
 const DEFAULT_TIMEOUT_MS = 8000;
 
+/** playOnce で作成した Howl を保持（読み込み中のものも stopAll で停止するため） */
+const activeHowls = new Set<Howl>();
+
 /**
  * 音声URLにキャッシュバスターを追加（R2の音声更新時にキャッシュを回避）
  * 環境変数 NEXT_PUBLIC_AUDIO_VERSION が設定されている場合はそれを使用、
@@ -22,9 +25,18 @@ function addCacheBuster(url: string): string {
   return url;
 }
 
-/** 再生中の音声をすべて停止（問題切り替え時の二重再生防止用） */
+/** 再生中・読み込み中の音声をすべて停止（ページ離脱時も読み込み完了後の再生を防ぐ） */
 export function stopAll(): void {
   Howler.stop();
+  activeHowls.forEach((sound) => {
+    try {
+      sound.stop();
+      sound.unload();
+    } catch {
+      // 既に unload 済みなどは無視
+    }
+  });
+  activeHowls.clear();
 }
 
 /**
@@ -43,6 +55,7 @@ export function playOnce(url: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<v
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      activeHowls.delete(sound);
       resolve();
     };
 
@@ -58,6 +71,7 @@ export function playOnce(url: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<v
       onplayerror: () => finish(),
     });
 
+    activeHowls.add(sound);
     sound.once("loaderror", () => finish());
     sound.play();
   });
