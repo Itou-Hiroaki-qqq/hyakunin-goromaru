@@ -5,7 +5,10 @@ export const metadata: Metadata = {
   title: "百人一首 -ゴロでマル覚え-",
   description: "百人一首を語呂合わせで楽しく覚えるWebアプリ",
   robots: "noindex, nofollow",
-  icons: { icon: "/favicon.svg" },
+  icons: {
+    icon: "/favicon.png",
+    apple: "/favicon.png",
+  },
 };
 
 export default function RootLayout({

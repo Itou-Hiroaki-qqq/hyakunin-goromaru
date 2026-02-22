@@ -5,7 +5,7 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   outputFileTracingRoot: path.join(process.cwd()),
   async rewrites() {
-    return [{ source: "/favicon.ico", destination: "/favicon.svg" }];
+    return [{ source: "/favicon.ico", destination: "/favicon.png" }];
   },
 };
 
