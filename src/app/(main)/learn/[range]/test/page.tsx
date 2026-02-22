@@ -96,7 +96,8 @@ export default function TestRangePage() {
         const to = range.to;
         const is4Test = to - from + 1 === 4;
         const is8Test = to - from + 1 === 8;
-        const isSummary = from === 1 && to > 4;
+        // 「ここまでのまとめテスト」は 1-16, 1-24, … のみ。1-8 は「前回も入れて8首」なので 8首 で保存する
+        const isSummary = from === 1 && to >= 16 && (to / 4) % 2 === 0;
         
         let testType = "";
         if (isSummary) {
