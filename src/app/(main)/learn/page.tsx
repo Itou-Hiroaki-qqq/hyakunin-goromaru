@@ -32,6 +32,9 @@ export default function LearnListPage() {
     return clears.some((c) => c.test_type === testType && c.range === range);
   };
 
+  const isTrickyFullyCleared =
+    isCleared("tricky_kami", "summary") && isCleared("tricky_shimo", "summary");
+
   return (
     <div className="container max-w-2xl mx-auto p-6">
       <h1 className="text-2xl font-bold mb-6">学習リスト</h1>
@@ -150,7 +153,12 @@ export default function LearnListPage() {
             href="/learn/tricky"
             className="w-full flex items-center justify-between p-4 bg-base-200 hover:bg-base-300 text-left font-medium"
           >
-            <span>間違えやすい問題</span>
+            <span className="flex items-center gap-2">
+              {isTrickyFullyCleared && (
+                <span className="text-yellow-500 text-xl">★</span>
+              )}
+              <span>間違えやすい問題</span>
+            </span>
             <svg
               className="w-5 h-5"
               fill="none"

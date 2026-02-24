@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import type { Poem } from "@/types/poem";
@@ -36,6 +36,7 @@ export default function ShimoTrickyQuestionPage() {
   const [fixedChoices, setFixedChoices] = useState<{ id: number; text: string }[]>([]); // 固定された選択肢
   const [clickedWrongIds, setClickedWrongIds] = useState<number[]>([]); // クリックした間違え選択肢のID
   const [goroHighlightPhase, setGoroHighlightPhase] = useState<"none" | "kami" | "shimo">("none"); // 正解時のみ、上の句→下の句の順で赤表示
+  const currentGoroPoemIdRef = useRef<number | null>(null); // 次の問題に進んだら前問の語呂再生を打ち切り
 
   useEffect(() => {
     return () => { stopAll(); };
@@ -80,6 +81,10 @@ export default function ShimoTrickyQuestionPage() {
   const finished = showResult;
   const allChoices = fixedChoices;
 
+  useEffect(() => {
+    if (currentPoem) currentGoroPoemIdRef.current = currentPoem.id;
+  }, [currentQ, currentPoem?.id]);
+
   // 正解時のみ：上の句語呂の赤→下の句語呂の赤の順で表示し、音声も上の句→下の句の順で再生
   useEffect(() => {
     if (!showGoro || !currentPoem || goroPlayKey <= 0) return;
@@ -87,10 +92,13 @@ export default function ShimoTrickyQuestionPage() {
     if (!isCorrectState) return;
 
     setGoroHighlightPhase("kami");
+    const poemId = currentPoem.id;
     const run = async () => {
+      if (currentGoroPoemIdRef.current !== poemId) return;
       if (currentPoem.kami_goro_audio_url) {
         await playOnce(currentPoem.kami_goro_audio_url);
       }
+      if (currentGoroPoemIdRef.current !== poemId) return;
       setGoroHighlightPhase("shimo");
       if (currentPoem.shimo_goro_audio_url) {
         await playOnce(currentPoem.shimo_goro_audio_url);
@@ -145,10 +153,11 @@ export default function ShimoTrickyQuestionPage() {
   const handleNext = () => {
     stopAll();
     if (isLastQuestion) {
-      // 最終問題の場合は結果画面へ
+      currentGoroPoemIdRef.current = null;
       setShowResult(true);
     } else {
-      // 次の問題へ
+      const nextPoem = poems[currentQ + 1];
+      if (nextPoem) currentGoroPoemIdRef.current = nextPoem.id;
       setCurrentQ((q) => q + 1);
       setSelectedShimoId(null);
       setIsCorrect(null);
@@ -247,7 +256,7 @@ export default function ShimoTrickyQuestionPage() {
   return (
     <div className="min-h-[60vh] p-6 bg-tatami">
       <p className="text-sm text-base-content/60 mb-2">
-        問題 {currentQ + 1} / {poems.length}
+        その{setId} 問題 {currentQ + 1} / {poems.length}
       </p>
       <div className="max-w-2xl mx-auto">
         <p className="text-center text-lg mb-4">下の句はどちら？</p>

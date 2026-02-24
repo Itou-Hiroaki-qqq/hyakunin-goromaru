@@ -75,6 +75,17 @@ export default function KamiTrickyTestPage() {
   const isLastQuestion = currentQ >= batchQuestions.length - 1;
   const finished = showResult;
   const choices = fixedChoices;
+  const firstTryCount = batchQuestions.length > 0 ? firstTryResults.filter(Boolean).length : 0;
+  const perfectClear = finished && batchQuestions.length > 0 && firstTryCount === batchQuestions.length;
+
+  useEffect(() => {
+    if (!perfectClear) return;
+    fetch("/api/test-clears", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ testType: "tricky_kami", range: "summary" }),
+    }).catch((err) => console.error("クリア状態の保存に失敗:", err));
+  }, [perfectClear]);
 
   useEffect(() => {
     if (!currentQuestion || !currentPoem || poemMap.size === 0) return;
@@ -183,12 +194,12 @@ export default function KamiTrickyTestPage() {
 
   if (finished) {
     const total = batchQuestions.length;
-    const firstTryCount = firstTryResults.filter(Boolean).length;
+    const firstTryCountDisplay = firstTryResults.filter(Boolean).length;
     return (
       <div className="container max-w-2xl mx-auto p-6">
         <h2 className="text-2xl font-bold mb-4">結果</h2>
         <p className="text-lg mb-2">
-          一発で正解した数：<strong>{firstTryCount}</strong> / {total} 問
+          一発で正解した数：<strong>{firstTryCountDisplay}</strong> / {total} 問
         </p>
         <p className="text-base text-base-content/70 mb-6">
           （最初の回答で正解した問題の数です）
