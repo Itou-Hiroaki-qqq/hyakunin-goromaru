@@ -36,6 +36,7 @@ export default function AllTestPage() {
   const [goroHighlightPhase, setGoroHighlightPhase] = useState<"none" | "kami" | "shimo">("none");
   const currentGoroPoemIdRef = useRef<number | null>(null);
   const lastGoroPlayKeyRef = useRef<number>(-1);
+  const [showResult, setShowResult] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -59,15 +60,11 @@ export default function AllTestPage() {
   }, []);
 
   const current = poems[currentQ] || null;
-  const finished = selectedCorrect && currentQ >= poems.length - 1;
+  const finished = showResult;
 
   useEffect(() => {
     if (finished && poems.length > 0) {
       stopAll();
-      // 最後の1問で間違えていたら復習に追加（handleNext は最後の1問では呼ばれないため）
-      if (current && clickedWrong.length > 0) {
-        addToReviewList({ type: "all", poemId: current.id });
-      }
       // 全問一発正解ならクリア状態を保存
       if (perfectScore === poems.length) {
         fetch("/api/test-clears", {
@@ -80,7 +77,7 @@ export default function AllTestPage() {
         }).catch((err) => console.error("クリア状態の保存に失敗:", err));
       }
     }
-  }, [finished, poems.length, perfectScore, current?.id, clickedWrong.length]);
+  }, [finished, poems.length, perfectScore]);
 
   useEffect(() => {
     if (!current || poems.length === 0) return;
@@ -169,7 +166,10 @@ export default function AllTestPage() {
     if (current && clickedWrong.length > 0) {
       addToReviewList({ type: "all", poemId: current.id });
     }
-    if (currentQ >= poems.length - 1) return;
+    if (currentQ >= poems.length - 1) {
+      setShowResult(true);
+      return;
+    }
     const nextQ = currentQ + 1;
     const nextPoem = poems[nextQ];
     if (nextPoem) currentGoroPoemIdRef.current = nextPoem.id;
@@ -271,10 +271,10 @@ export default function AllTestPage() {
             </p>
           </div>
         )}
-        {selectedCorrect && !finished && (
+        {showGoro && (
           <div className="flex justify-center gap-4">
             <button type="button" className="btn btn-primary" onClick={handleNext}>
-              次の問題
+              {currentQ >= poems.length - 1 ? "結果を見る" : "次の問題"}
             </button>
           </div>
         )}

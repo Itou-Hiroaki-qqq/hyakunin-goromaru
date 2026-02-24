@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { Poem } from "@/types/poem";
 import { playOnce, playSequence, stopAll } from "@/lib/audio";
@@ -37,6 +37,7 @@ export default function KamiTrickyTestPage() {
   const [clickedWrongIds, setClickedWrongIds] = useState<number[]>([]);
   const [goroHighlightPhase, setGoroHighlightPhase] = useState<"none" | "kami" | "shimo">("none");
   const [firstTryResults, setFirstTryResults] = useState<boolean[]>([]);
+  const currentGoroPoemIdRef = useRef<number | null>(null);
 
   useEffect(() => {
     return () => { stopAll(); };
@@ -99,12 +100,19 @@ export default function KamiTrickyTestPage() {
   }, [currentQ, currentQuestion?.correctPoemId, poemMap.size]);
 
   useEffect(() => {
+    if (currentPoem) currentGoroPoemIdRef.current = currentPoem.id;
+  }, [currentQ, currentPoem?.id]);
+
+  useEffect(() => {
     if (!showGoro || !currentPoem || goroPlayKey <= 0) return;
     const isCorrectState = isCorrect === true || hasShownCorrect;
     if (!isCorrectState) return;
     setGoroHighlightPhase("kami");
+    const poemId = currentPoem.id;
     const run = async () => {
+      if (currentGoroPoemIdRef.current !== poemId) return;
       if (currentPoem.kami_goro_audio_url) await playOnce(currentPoem.kami_goro_audio_url);
+      if (currentGoroPoemIdRef.current !== poemId) return;
       setGoroHighlightPhase("shimo");
       if (currentPoem.shimo_goro_audio_url) await playOnce(currentPoem.shimo_goro_audio_url);
     };
@@ -157,9 +165,12 @@ export default function KamiTrickyTestPage() {
       } as Omit<ReviewItem, "id">);
     }
     if (isLastQuestion) {
+      currentGoroPoemIdRef.current = null;
       setFirstTryResults((prev) => [...prev, firstTryCorrect]);
       setShowResult(true);
     } else {
+      const nextQuestion = batchQuestions[currentQ + 1];
+      if (nextQuestion) currentGoroPoemIdRef.current = nextQuestion.correctPoemId;
       setFirstTryResults((prev) => [...prev, firstTryCorrect]);
       setCurrentQ((q) => q + 1);
       setSelectedKamiId(null);
