@@ -278,6 +278,40 @@ export default function TestRangePage() {
     const nextFourTo = to < 100 ? to + 4 : 0;
     const showNextFour = isFinalResult && to < 100 && !is20Test;
 
+    // 4首テスト or 8首テストの結果ページで、該当ブロックなら20首テストへ進むボタンを表示
+    const show20TestLink =
+      !is20Test &&
+      ((is4Test && from === 17 && to === 20) ||
+        (is8Test && from === 33 && to === 40) ||
+        (is4Test && from === 57 && to === 60) ||
+        (is8Test && from === 73 && to === 80) ||
+        (is8Test && from === 93 && to === 100));
+    const twentyTestRange = show20TestLink
+      ? from <= 20
+        ? "1-20"
+        : from <= 40
+          ? "21-40"
+          : from <= 60
+            ? "41-60"
+            : from <= 80
+              ? "61-80"
+              : "81-100"
+      : "";
+    const twentyTestLabel =
+      twentyTestRange === "1-20"
+        ? "1～20首テストへ進む"
+        : twentyTestRange === "21-40"
+          ? "21～40首テストへ進む"
+          : twentyTestRange === "41-60"
+            ? "41～60首テストへ進む"
+            : twentyTestRange === "61-80"
+              ? "61～80首テストへ進む"
+              : twentyTestRange === "81-100"
+                ? "81～100首テストへ進む"
+                : "";
+
+    const showAll100Link = is20Test && from === 81 && to === 100;
+
     return (
       <div className="container max-w-2xl mx-auto p-6">
         <h2 className="text-2xl font-bold mb-4">{resultTitle}</h2>
@@ -296,12 +330,25 @@ export default function TestRangePage() {
               前回も入れて8首でテスト
             </Link>
           )}
+          {show20TestLink && twentyTestLabel && (
+            <Link
+              href={`/learn/${twentyTestRange}/test`}
+              className="btn btn-outline"
+            >
+              {twentyTestLabel}
+            </Link>
+          )}
           {showNextFour && (
             <Link
               href={`/learn/${nextFourFrom}-${nextFourTo}/study`}
               className="btn btn-outline"
             >
               次の4首に進む
+            </Link>
+          )}
+          {showAll100Link && (
+            <Link href="/learn/all/test" className="btn btn-outline">
+              100首ぜんぶテストへ進む
             </Link>
           )}
           <Link href="/learn" className="btn btn-primary">
