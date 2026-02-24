@@ -77,7 +77,8 @@ export default function TestRangePage() {
   const isLastQuestion = currentQ >= poems.length - 1;
   const finished = showResult;
   const rangeLabel = range ? `${range.from}-${range.to}` : "";
-  const isSummaryTest = range ? range.from === 1 && range.to > 4 : false;
+  const is20Test = range ? range.to - range.from + 1 === 20 : false;
+  const isSummaryTest = range ? range.from === 1 && range.to > 4 : false; // 結果タイトル用（従来のまとめ範囲）
 
   useEffect(() => {
     if (finished && poems.length > 0 && range && current) {
@@ -96,12 +97,11 @@ export default function TestRangePage() {
         const to = range.to;
         const is4Test = to - from + 1 === 4;
         const is8Test = to - from + 1 === 8;
-        // 「ここまでのまとめテスト」は 1-16, 1-24, … のみ。1-8 は「前回も入れて8首」なので 8首 で保存する
-        const isSummary = from === 1 && to >= 16 && (to / 4) % 2 === 0;
+        const is20Test = to - from + 1 === 20;
         
         let testType = "";
-        if (isSummary) {
-          testType = "まとめ";
+        if (is20Test) {
+          testType = "20首";
         } else if (is8Test) {
           testType = "8首";
         } else if (is4Test) {
@@ -258,28 +258,25 @@ export default function TestRangePage() {
   }
 
   if (finished) {
-    const resultTitle = isSummaryTest
-      ? "ここまでのまとめテスト 結果"
-      : `${poems.length}首でテスト 結果`;
+    const resultTitle = is20Test
+      ? `${range?.from ?? 0}～${range?.to ?? 0}首テスト 結果`
+      : isSummaryTest
+        ? "ここまでのまとめテスト 結果"
+        : `${poems.length}首でテスト 結果`;
 
     const from = range?.from ?? 0;
     const to = range?.to ?? 0;
     const is4Test = range && to - from + 1 === 4;
     const blockIndex = from > 0 ? Math.ceil(from / 4) : 0;
     const has8Test = blockIndex >= 2 && blockIndex % 2 === 0;
-    const hasSummaryTestForBlock = blockIndex >= 4 && blockIndex % 2 === 0;
     const from8 = has8Test ? 4 * blockIndex - 7 : 0;
     const to8 = has8Test ? 4 * blockIndex : 0;
     const show8TestOn4Result = is4Test && has8Test;
     const is8Test = range && to - from + 1 === 8;
-    const showSummaryOn8Result = is8Test && to >= 16;
-    const isFinalResult =
-      isSummaryTest ||
-      is8Test ||
-      (is4Test && !has8Test && !hasSummaryTestForBlock);
+    const isFinalResult = is20Test || is8Test || is4Test;
     const nextFourFrom = to < 100 ? to + 1 : 0;
     const nextFourTo = to < 100 ? to + 4 : 0;
-    const showNextFour = isFinalResult && to < 100;
+    const showNextFour = isFinalResult && to < 100 && !is20Test;
 
     return (
       <div className="container max-w-2xl mx-auto p-6">
@@ -288,25 +285,15 @@ export default function TestRangePage() {
           正解数：{score} / {poems.length} 首
         </p>
         <div className="flex flex-wrap gap-4">
-          {!isSummaryTest && (
-            <Link href={`/learn/${rangeLabel}/study`} className="btn btn-outline">
-              もう一度学習する
-            </Link>
-          )}
+          <Link href={`/learn/${rangeLabel}/study`} className="btn btn-outline">
+            もう一度学習する
+          </Link>
           {show8TestOn4Result && (
             <Link
               href={`/learn/${from8}-${to8}/test`}
               className="btn btn-outline"
             >
               前回も入れて8首でテスト
-            </Link>
-          )}
-          {showSummaryOn8Result && (
-            <Link
-              href={`/learn/1-${to}/test`}
-              className="btn btn-outline"
-            >
-              ここまでのまとめテスト
             </Link>
           )}
           {showNextFour && (

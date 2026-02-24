@@ -44,21 +44,30 @@ export default function LearnListPage() {
           const isOpen = openKey === key;
           const blockIndex = Math.ceil(from / 4); // 1-based: 1～25（1-4→1, 5-8→2, ...）
           const has8Test = (blockIndex >= 2 && blockIndex % 2 === 0) || blockIndex === 25; // 2,4,6,...,24,25 → 前回も入れて8首でテスト
-          const hasSummaryTest = blockIndex >= 4 && blockIndex % 2 === 0; // 4,6,...,24 → ここまでのまとめテスト
+          const has20Test = blockIndex % 5 === 0 && blockIndex >= 5; // 5,10,15,20,25 → 17-20,37-40,57-60,77-80,97-100 に20首テスト
           const from8 = has8Test ? (blockIndex === 25 ? 93 : 4 * blockIndex - 7) : 0;
           const to8 = has8Test ? (blockIndex === 25 ? 100 : 4 * blockIndex) : 0;
-          const toSummary = hasSummaryTest ? 4 * blockIndex : 0;
+          const group20 = has20Test ? blockIndex / 5 : 0; // 1,2,3,4,5
+          const from20 = has20Test ? (group20 - 1) * 20 + 1 : 0;
+          const to20 = has20Test ? group20 * 20 : 0;
+          const twentyTestLabel =
+            blockIndex === 5
+              ? "1～20首テスト"
+              : blockIndex === 10
+                ? "21～40首テスト"
+                : blockIndex === 15
+                  ? "41～60首テスト"
+                  : blockIndex === 20
+                    ? "61～80首テスト"
+                    : "81～100首テスト";
 
           // クリア状態を判定
           let isBlockCleared = false;
-          if (hasSummaryTest) {
-            // まとめテストがある場合: まとめテストがクリアされているか
-            isBlockCleared = isCleared("まとめ", `1-${toSummary}`);
+          if (has20Test) {
+            isBlockCleared = isCleared("20首", `${from20}-${to20}`);
           } else if (has8Test) {
-            // 8首テストがある場合: 8首テストがクリアされているか
             isBlockCleared = isCleared("8首", `${from8}-${to8}`);
           } else {
-            // 4首テストのみ: 4首テストがクリアされているか
             isBlockCleared = isCleared("4首", `${from}-${to}`);
           }
 
@@ -107,12 +116,12 @@ export default function LearnListPage() {
                       前回も入れて8首でテスト
                     </Link>
                   )}
-                  {hasSummaryTest && (
+                  {has20Test && (
                     <Link
-                      href={`/learn/1-${toSummary}/test`}
+                      href={`/learn/${from20}-${to20}/test`}
                       className="btn btn-outline btn-block btn-sm sm:btn-md"
                     >
-                      ここまでのまとめテスト
+                      {twentyTestLabel}
                     </Link>
                   )}
                 </div>
