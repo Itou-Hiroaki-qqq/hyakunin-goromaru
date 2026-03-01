@@ -6,6 +6,7 @@ import type { Poem } from "@/types/poem";
 import { playOnce, playSequence, stopAll } from "@/lib/audio";
 import { findGoroRange } from "@/lib/goro";
 import { addToReviewList } from "@/lib/reviewStorage";
+import { useTestBestScores } from "@/lib/useTestBestScores";
 import { PoemCard, ChoiceCard } from "@/components/QuizCard";
 
 function shuffle<T>(arr: T[]): T[] {
@@ -37,6 +38,7 @@ export default function AllTestPage() {
   const currentGoroPoemIdRef = useRef<number | null>(null);
   const lastGoroPlayKeyRef = useRef<number>(-1);
   const [showResult, setShowResult] = useState(false);
+  const { getStoredBest, saveBestScore } = useTestBestScores();
 
   useEffect(() => {
     return () => {
@@ -78,6 +80,12 @@ export default function AllTestPage() {
       }
     }
   }, [finished, poems.length, perfectScore]);
+
+  useEffect(() => {
+    if (finished && poems.length > 0) {
+      saveBestScore("100首:all", perfectScore);
+    }
+  }, [finished, poems.length, perfectScore, saveBestScore]);
 
   useEffect(() => {
     if (!current || poems.length === 0) return;
@@ -201,11 +209,17 @@ export default function AllTestPage() {
   }
 
   if (finished) {
+    const bestKey = "100首:all";
+    const best = getStoredBest(bestKey);
+    const highest = Math.max(best, perfectScore);
     return (
       <div className="container max-w-2xl mx-auto p-6">
         <h2 className="text-2xl font-bold mb-4">100首ぜんぶテスト 結果</h2>
+        <p className="text-lg mb-2">
+          最高一発正解数：{highest} / {poems.length} 首
+        </p>
         <p className="text-lg mb-6">
-          一発正解数：{perfectScore} / {poems.length} 首
+          今回の一発正解数：{perfectScore} / {poems.length} 首
         </p>
         <div className="flex flex-wrap gap-4">
           <Link href="/learn" className="btn btn-primary">

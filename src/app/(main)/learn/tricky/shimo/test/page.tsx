@@ -7,6 +7,7 @@ import { playOnce, playSequence, stopAll } from "@/lib/audio";
 import { findGoroRange } from "@/lib/goro";
 import { SHIMO_TRICKY_SETS } from "@/data/tricky-questions";
 import { addToReviewList, type ReviewItem } from "@/lib/reviewStorage";
+import { useTestBestScores } from "@/lib/useTestBestScores";
 import { PoemCard, ChoiceCard } from "@/components/QuizCard";
 
 function shuffle<T>(arr: T[]): T[] {
@@ -38,6 +39,7 @@ export default function ShimoTrickyTestPage() {
   const [goroHighlightPhase, setGoroHighlightPhase] = useState<"none" | "kami" | "shimo">("none");
   const [firstTryResults, setFirstTryResults] = useState<boolean[]>([]);
   const currentGoroPoemIdRef = useRef<number | null>(null);
+  const { getStoredBest, saveBestScore } = useTestBestScores();
 
   useEffect(() => {
     return () => { stopAll(); };
@@ -77,6 +79,12 @@ export default function ShimoTrickyTestPage() {
   const allChoices = fixedChoices;
   const firstTryCount = batchQuestions.length > 0 ? firstTryResults.filter(Boolean).length : 0;
   const perfectClear = finished && batchQuestions.length > 0 && firstTryCount === batchQuestions.length;
+
+  useEffect(() => {
+    if (finished && batchQuestions.length > 0) {
+      saveBestScore("tricky_shimo:summary", firstTryCount);
+    }
+  }, [finished, batchQuestions.length, firstTryCount, saveBestScore]);
 
   useEffect(() => {
     if (!perfectClear) return;
@@ -204,12 +212,18 @@ export default function ShimoTrickyTestPage() {
 
   if (finished) {
     const total = batchQuestions.length;
-    const firstTryCountDisplay = firstTryResults.filter(Boolean).length;
+    const currentCount = firstTryResults.filter(Boolean).length;
+    const bestKey = "tricky_shimo:summary";
+    const best = getStoredBest(bestKey);
+    const highest = Math.max(best, currentCount);
     return (
       <div className="container max-w-2xl mx-auto p-6">
         <h2 className="text-2xl font-bold mb-4">結果</h2>
         <p className="text-lg mb-2">
-          一発で正解した数：<strong>{firstTryCountDisplay}</strong> / {total} 問
+          最高一発正解数：<strong>{highest}</strong> / {total} 問
+        </p>
+        <p className="text-lg mb-2">
+          今回の一発正解数：<strong>{currentCount}</strong> / {total} 問
         </p>
         <p className="text-base text-base-content/70 mb-6">
           （最初の回答で正解した問題の数です）

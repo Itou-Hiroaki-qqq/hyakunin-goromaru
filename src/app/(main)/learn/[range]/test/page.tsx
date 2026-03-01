@@ -8,6 +8,7 @@ import { playOnce, playSequence, stopAll } from "@/lib/audio";
 import { findGoroRange } from "@/lib/goro";
 import { parseRange } from "@/lib/range";
 import { addToReviewList, type ReviewItem } from "@/lib/reviewStorage";
+import { useTestBestScores } from "@/lib/useTestBestScores";
 import { PoemCard, ChoiceCard } from "@/components/QuizCard";
 
 function shuffle<T>(arr: T[]): T[] {
@@ -42,6 +43,7 @@ export default function TestRangePage() {
   const currentGoroPoemIdRef = useRef<number | null>(null);
   const lastGoroPlayKeyRef = useRef<number>(-1);
   const [showResult, setShowResult] = useState(false);
+  const { getStoredBest, saveBestScore } = useTestBestScores();
 
   useEffect(() => {
     return () => {
@@ -121,6 +123,12 @@ export default function TestRangePage() {
       }
     }
   }, [finished, poems.length, perfectScore, range, current?.id, clickedWrong.length, current]);
+
+  useEffect(() => {
+    if (finished && rangeLabel && poems.length > 0) {
+      saveBestScore(`range:${rangeLabel}`, perfectScore);
+    }
+  }, [finished, rangeLabel, poems.length, perfectScore, saveBestScore]);
 
   useEffect(() => {
     if (!current || poems.length === 0) return;
@@ -312,11 +320,18 @@ export default function TestRangePage() {
 
     const showAll100Link = is20Test && from === 81 && to === 100;
 
+    const bestScoreKey = `range:${rangeLabel}`;
+    const storedBest = getStoredBest(bestScoreKey);
+    const highestIppatsu = Math.max(storedBest, perfectScore);
+
     return (
       <div className="container max-w-2xl mx-auto p-6">
         <h2 className="text-2xl font-bold mb-4">{resultTitle}</h2>
+        <p className="text-lg mb-2">
+          最高一発正解数：{highestIppatsu} / {poems.length} 首
+        </p>
         <p className="text-lg mb-6">
-          正解数：{score} / {poems.length} 首
+          今回の一発正解数：{perfectScore} / {poems.length} 首
         </p>
         <div className="flex flex-wrap gap-4">
           <Link href={`/learn/${rangeLabel}/study`} className="btn btn-outline">

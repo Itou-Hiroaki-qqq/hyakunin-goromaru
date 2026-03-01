@@ -51,6 +51,12 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 
 または、プロジェクト直下の `sql/create_user_test_clears.sql` ファイルの内容を Neon の SQL Editor で実行してください。
 
+**最高一発正解数保存用テーブルの作成（任意）**
+
+ログイン時に「最高一発正解数」を Neon で永続化するには、`user_test_best_scores` テーブルを作成してください。未作成の場合はログイン時も localStorage に保存されます。
+
+- `sql/create_user_test_best_scores.sql` の内容を Neon の SQL Editor で実行してください。
+
 ### 4. 開発サーバー
 
 ```bash
