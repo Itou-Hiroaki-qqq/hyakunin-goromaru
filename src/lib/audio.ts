@@ -6,23 +6,22 @@ const DEFAULT_TIMEOUT_MS = 8000;
 const activeHowls = new Set<Howl>();
 
 /**
- * 音声URLにキャッシュバスターを追加（R2の音声更新時にキャッシュを回避）
- * 環境変数 NEXT_PUBLIC_AUDIO_VERSION が設定されている場合はそれを使用、
- * なければ開発時はタイムスタンプ、本番時は空文字列
+ * キャッシュバスタークエリ文字列（モジュールロード時に1回だけ生成）
+ * - NEXT_PUBLIC_AUDIO_VERSION が設定されていればそれを使用
+ * - 開発時はページロード時のタイムスタンプ（セッション内はキャッシュ利用、リロードで更新）
+ * - 本番かつ環境変数なし: キャッシュバスターなし（ブラウザキャッシュをそのまま利用）
  */
-function addCacheBuster(url: string): string {
-  if (!url) return url;
+const CACHE_BUSTER: string = (() => {
   const version = process.env.NEXT_PUBLIC_AUDIO_VERSION;
-  if (version) {
-    const separator = url.includes("?") ? "&" : "?";
-    return `${url}${separator}v=${version}`;
-  }
-  // 開発時はタイムスタンプでキャッシュ回避（本番では環境変数を使うことを推奨）
-  if (process.env.NODE_ENV === "development") {
-    const separator = url.includes("?") ? "&" : "?";
-    return `${url}${separator}_t=${Date.now()}`;
-  }
-  return url;
+  if (version) return `v=${version}`;
+  if (process.env.NODE_ENV === "development") return `_t=${Date.now()}`;
+  return "";
+})();
+
+function addCacheBuster(url: string): string {
+  if (!url || !CACHE_BUSTER) return url;
+  const separator = url.includes("?") ? "&" : "?";
+  return `${url}${separator}${CACHE_BUSTER}`;
 }
 
 /** 再生中・読み込み中の音声をすべて停止（ページ離脱時も読み込み完了後の再生を防ぐ） */

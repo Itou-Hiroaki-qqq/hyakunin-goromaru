@@ -18,8 +18,7 @@
     "next": "16.0.7",
     "pg": "^8.13.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "zustand": "^5.0.0"
+    "react-dom": "^19.0.0"
   },
   "devDependencies": {
     "@types/howler": "^2.2.12",

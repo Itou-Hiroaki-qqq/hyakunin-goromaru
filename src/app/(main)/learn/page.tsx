@@ -2,13 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-
-/** 4首ブロックの定義（1～4, 5～8, ..., 97～100） */
-const BLOCKS = Array.from({ length: 25 }, (_, i) => {
-  const from = i * 4 + 1;
-  const to = (i + 1) * 4;
-  return { from, to, key: `${from}-${to}` };
-});
+import { BLOCKS, getBlockClearStatus } from "@/lib/blockUtils";
 
 type ClearStatus = {
   test_type: string;
@@ -40,36 +34,10 @@ export default function LearnListPage() {
       <h1 className="text-2xl font-bold mb-6">学習リスト</h1>
 
       <div className="flex flex-col gap-3">
-        {BLOCKS.map(({ from, to, key }) => {
+        {BLOCKS.map((block) => {
+          const { from, to, key, has8Test, from8, to8, has20Test, from20, to20, twentyTestLabel } = block;
           const isOpen = openKey === key;
-          const blockIndex = Math.ceil(from / 4); // 1-based: 1～25（1-4→1, 5-8→2, ...）
-          const has8Test = (blockIndex >= 2 && blockIndex % 2 === 0) || blockIndex === 25; // 2,4,6,...,24,25 → 前回も入れて8首でテスト
-          const has20Test = blockIndex % 5 === 0 && blockIndex >= 5; // 5,10,15,20,25 → 17-20,37-40,57-60,77-80,97-100 に20首テスト
-          const from8 = has8Test ? (blockIndex === 25 ? 93 : 4 * blockIndex - 7) : 0;
-          const to8 = has8Test ? (blockIndex === 25 ? 100 : 4 * blockIndex) : 0;
-          const group20 = has20Test ? blockIndex / 5 : 0; // 1,2,3,4,5
-          const from20 = has20Test ? (group20 - 1) * 20 + 1 : 0;
-          const to20 = has20Test ? group20 * 20 : 0;
-          const twentyTestLabel =
-            blockIndex === 5
-              ? "1～20首テスト"
-              : blockIndex === 10
-                ? "21～40首テスト"
-                : blockIndex === 15
-                  ? "41～60首テスト"
-                  : blockIndex === 20
-                    ? "61～80首テスト"
-                    : "81～100首テスト";
-
-          // クリア状態を判定
-          let isBlockCleared = false;
-          if (has20Test) {
-            isBlockCleared = isCleared("20首", `${from20}-${to20}`);
-          } else if (has8Test) {
-            isBlockCleared = isCleared("8首", `${from8}-${to8}`);
-          } else {
-            isBlockCleared = isCleared("4首", `${from}-${to}`);
-          }
+          const isBlockCleared = getBlockClearStatus(block, isCleared);
 
           return (
             <div key={key} className="border border-base-300 rounded-xl overflow-hidden">
@@ -129,7 +97,7 @@ export default function LearnListPage() {
             </div>
           );
         })}
-        
+
         {/* 100首ぜんぶテスト */}
         <div className="border border-base-300 rounded-xl overflow-hidden mt-2">
           <Link

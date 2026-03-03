@@ -9,8 +9,8 @@ const STORAGE_KEY = "hyakunin_review_list";
 
 beforeEach(() => {
   localStorage.clear();
-  if (typeof crypto !== "undefined" && crypto.randomUUID) {
-    jest.spyOn(crypto, "randomUUID").mockReturnValue("test-uuid-123");
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    jest.spyOn(crypto, "randomUUID").mockReturnValue("test-uuid-123" as `${string}-${string}-${string}-${string}-${string}`);
   }
 });
 

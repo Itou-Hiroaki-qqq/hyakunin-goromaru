@@ -4,11 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import type { Poem } from "@/types/poem";
-import { playOnce, playSequence, stopAll } from "@/lib/audio";
+import { playOnce, stopAll } from "@/lib/audio";
 import { findGoroRange } from "@/lib/goro";
 import { parseRange } from "@/lib/range";
-import { addToReviewList, type ReviewItem } from "@/lib/reviewStorage";
+import { addToReviewList } from "@/lib/reviewStorage";
 import { useTestBestScores } from "@/lib/useTestBestScores";
+import { useGoroPlayback } from "@/lib/useGoroPlayback";
+import { useKamiAudio } from "@/lib/useKamiAudio";
+import { useTestResultSave } from "@/lib/useTestResultSave";
 import { PoemCard, ChoiceCard } from "@/components/QuizCard";
 
 function shuffle<T>(arr: T[]): T[] {
@@ -20,7 +23,21 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-let goroRunInProgress = false;
+const TWENTY_TEST_LABELS: Record<string, string> = {
+  "1-20": "1～20首テストへ進む",
+  "21-40": "21～40首テストへ進む",
+  "41-60": "41～60首テストへ進む",
+  "61-80": "61～80首テストへ進む",
+  "81-100": "81～100首テストへ進む",
+};
+
+function get20TestRange(from: number): string {
+  if (from <= 20) return "1-20";
+  if (from <= 40) return "21-40";
+  if (from <= 60) return "41-60";
+  if (from <= 80) return "61-80";
+  return "81-100";
+}
 
 export default function TestRangePage() {
   const params = useParams();
@@ -35,23 +52,57 @@ export default function TestRangePage() {
   const [clickedWrong, setClickedWrong] = useState<string[]>([]);
   const [selectedCorrect, setSelectedCorrect] = useState(false);
   const [score, setScore] = useState(0);
-  const [perfectScore, setPerfectScore] = useState(0); // 一発正解数
-  const lastPlayedQRef = useRef<number | null>(null);
+  const [perfectScore, setPerfectScore] = useState(0);
   const [showGoro, setShowGoro] = useState(false);
   const [goroPlayKey, setGoroPlayKey] = useState(0);
-  const [goroHighlightPhase, setGoroHighlightPhase] = useState<"none" | "kami" | "shimo">("none");
-  const currentGoroPoemIdRef = useRef<number | null>(null);
-  const lastGoroPlayKeyRef = useRef<number>(-1);
   const [showResult, setShowResult] = useState(false);
   const { getStoredBest, saveBestScore } = useTestBestScores();
 
+  // 語呂再生の多重起動・問題またぎ防止用 Ref
+  const goroRunInProgressRef = useRef(false);
+  const currentGoroPoemIdRef = useRef<number | null>(null);
+  const lastGoroPlayKeyRef = useRef<number>(-1);
+
+  const poemIndex = order[currentQ];
+  const current = poemIndex != null ? poems[poemIndex] : null;
+  const isLastQuestion = currentQ >= poems.length - 1;
+  const finished = showResult;
+  const rangeLabel = range ? `${range.from}-${range.to}` : "";
+  const is20Test = range ? range.to - range.from + 1 === 20 : false;
+  const isSummaryTest = range ? range.from === 1 && range.to > 4 : false;
+
+  // 語呂再生（正解後ハイライト付き・不正解後一括）
+  const { goroHighlightPhase, resetGoroHighlight } = useGoroPlayback({
+    current,
+    showGoro,
+    goroPlayKey,
+    selectedCorrect,
+    goroRunInProgressRef,
+    currentGoroPoemIdRef,
+    lastGoroPlayKeyRef,
+  });
+
+  // 問題ごとに上の句音声を自動再生
+  useKamiAudio({ current, currentQ, poemsLength: poems.length });
+
+  // テスト終了時の保存処理
+  useTestResultSave({
+    finished,
+    poems,
+    range,
+    current,
+    clickedWrong,
+    perfectScore,
+    rangeLabel,
+    saveBestScore,
+  });
+
+  // ページ離脱時に音声を停止
   useEffect(() => {
-    return () => {
-      stopAll();
-      goroRunInProgress = false;
-    };
+    return () => { stopAll(); };
   }, []);
 
+  // 句データ取得
   const rangeKey = typeof params.range === "string" ? params.range : "";
   useEffect(() => {
     if (!range) {
@@ -72,68 +123,14 @@ export default function TestRangePage() {
       })
       .catch((err) => setError(err.message || "エラー"))
       .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rangeKey]);
 
-  const poemIndex = order[currentQ];
-  const current = poemIndex != null ? poems[poemIndex] : null;
-  const isLastQuestion = currentQ >= poems.length - 1;
-  const finished = showResult;
-  const rangeLabel = range ? `${range.from}-${range.to}` : "";
-  const is20Test = range ? range.to - range.from + 1 === 20 : false;
-  const isSummaryTest = range ? range.from === 1 && range.to > 4 : false; // 結果タイトル用（従来のまとめ範囲）
-
-  useEffect(() => {
-    if (finished && poems.length > 0 && range && current) {
-      stopAll();
-      // 最後の1問で間違えていたら復習に追加
-      if (clickedWrong.length > 0) {
-        addToReviewList({
-          type: "range",
-          poemId: current.id,
-          range: `${range.from}-${range.to}`,
-        } as Omit<ReviewItem, "id">);
-      }
-      // 全問一発正解ならクリア状態を保存
-      if (perfectScore === poems.length) {
-        const from = range.from;
-        const to = range.to;
-        const is4Test = to - from + 1 === 4;
-        const is8Test = to - from + 1 === 8;
-        const is20Test = to - from + 1 === 20;
-        
-        let testType = "";
-        if (is20Test) {
-          testType = "20首";
-        } else if (is8Test) {
-          testType = "8首";
-        } else if (is4Test) {
-          testType = "4首";
-        }
-        
-        if (testType) {
-          fetch("/api/test-clears", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              testType,
-              range: `${from}-${to}`,
-            }),
-          }).catch((err) => console.error("クリア状態の保存に失敗:", err));
-        }
-      }
-    }
-  }, [finished, poems.length, perfectScore, range, current?.id, clickedWrong.length, current]);
-
-  useEffect(() => {
-    if (finished && rangeLabel && poems.length > 0) {
-      saveBestScore(`range:${rangeLabel}`, perfectScore);
-    }
-  }, [finished, rangeLabel, poems.length, perfectScore, saveBestScore]);
-
+  // 問題切り替え時に選択肢・状態をリセット
   useEffect(() => {
     if (!current || poems.length === 0) return;
     currentGoroPoemIdRef.current = current.id;
-    goroRunInProgress = false;
+    goroRunInProgressRef.current = false;
     lastGoroPlayKeyRef.current = -1;
     const others = poems.filter((p) => p.id !== current.id);
     const wrong = others.map((p) => ({ text: p.shimo_hiragana, poemId: p.id }));
@@ -146,49 +143,10 @@ export default function TestRangePage() {
     setSelectedCorrect(false);
     setShowGoro(false);
     setGoroPlayKey(0);
-    setGoroHighlightPhase("none");
+    resetGoroHighlight();
     setShowResult(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentQ, poems.length, current?.id]);
-
-  useEffect(() => {
-    if (!showGoro || !current || goroPlayKey <= 0) return;
-    if (!selectedCorrect) return;
-    if (goroRunInProgress) return;
-    if (lastGoroPlayKeyRef.current === goroPlayKey) return;
-    lastGoroPlayKeyRef.current = goroPlayKey;
-    goroRunInProgress = true;
-    const poemId = current.id;
-    setGoroHighlightPhase("kami");
-    const run = async () => {
-      try {
-        if (currentGoroPoemIdRef.current !== poemId) return;
-        if (current.kami_goro_audio_url) await playOnce(current.kami_goro_audio_url);
-        if (currentGoroPoemIdRef.current !== poemId) return;
-        setGoroHighlightPhase("shimo");
-        if (current.shimo_goro_audio_url) await playOnce(current.shimo_goro_audio_url);
-      } finally {
-        goroRunInProgress = false;
-      }
-    };
-    run();
-  }, [goroPlayKey, showGoro, current?.id, selectedCorrect]);
-
-  useEffect(() => {
-    if (!showGoro || !current || goroPlayKey <= 0) return;
-    if (selectedCorrect) return;
-    const urls: string[] = [];
-    if (current.kami_goro_audio_url) urls.push(current.kami_goro_audio_url);
-    if (current.shimo_goro_audio_url) urls.push(current.shimo_goro_audio_url);
-    if (urls.length > 0) playSequence(urls);
-  }, [goroPlayKey, showGoro, current, selectedCorrect]);
-
-  useEffect(() => {
-    if (!current?.kami_audio_url || poems.length === 0) return;
-    if (lastPlayedQRef.current === currentQ) return;
-    if (lastPlayedQRef.current != null) stopAll();
-    lastPlayedQRef.current = currentQ;
-    playOnce(current.kami_audio_url);
-  }, [currentQ, poems.length, current?.id, current?.kami_audio_url]);
 
   const handleAnswer = (answer: string) => {
     if (selectedCorrect) return;
@@ -210,16 +168,15 @@ export default function TestRangePage() {
 
   const handleNext = () => {
     stopAll();
-    goroRunInProgress = false;
+    goroRunInProgressRef.current = false;
     if (current && clickedWrong.length > 0 && range) {
       addToReviewList({
         type: "range",
         poemId: current.id,
         range: `${range.from}-${range.to}`,
-      } as Omit<ReviewItem, "id">);
+      });
     }
     if (isLastQuestion) {
-      // 結果画面へ移るため、語呂再生の非同期 run() が続けて下の句を流さないようにする
       currentGoroPoemIdRef.current = null;
       setShowResult(true);
       return;
@@ -231,7 +188,7 @@ export default function TestRangePage() {
     setClickedWrong([]);
     setShowGoro(false);
     setGoroPlayKey(0);
-    setGoroHighlightPhase("none");
+    resetGoroHighlight();
     setCurrentQ((q) => q + 1);
   };
 
@@ -286,7 +243,6 @@ export default function TestRangePage() {
     const nextFourTo = to < 100 ? to + 4 : 0;
     const showNextFour = isFinalResult && to < 100 && !is20Test;
 
-    // 4首テスト or 8首テストの結果ページで、該当ブロックなら20首テストへ進むボタンを表示
     const show20TestLink =
       !is20Test &&
       ((is4Test && from === 17 && to === 20) ||
@@ -294,29 +250,8 @@ export default function TestRangePage() {
         (is4Test && from === 57 && to === 60) ||
         (is8Test && from === 73 && to === 80) ||
         (is8Test && from === 93 && to === 100));
-    const twentyTestRange = show20TestLink
-      ? from <= 20
-        ? "1-20"
-        : from <= 40
-          ? "21-40"
-          : from <= 60
-            ? "41-60"
-            : from <= 80
-              ? "61-80"
-              : "81-100"
-      : "";
-    const twentyTestLabel =
-      twentyTestRange === "1-20"
-        ? "1～20首テストへ進む"
-        : twentyTestRange === "21-40"
-          ? "21～40首テストへ進む"
-          : twentyTestRange === "41-60"
-            ? "41～60首テストへ進む"
-            : twentyTestRange === "61-80"
-              ? "61～80首テストへ進む"
-              : twentyTestRange === "81-100"
-                ? "81～100首テストへ進む"
-                : "";
+    const twentyTestRange = show20TestLink ? get20TestRange(from) : "";
+    const twentyTestLabel = twentyTestRange ? TWENTY_TEST_LABELS[twentyTestRange] ?? "" : "";
 
     const showAll100Link = is20Test && from === 81 && to === 100;
 
@@ -338,26 +273,17 @@ export default function TestRangePage() {
             もう一度学習する
           </Link>
           {show8TestOn4Result && (
-            <Link
-              href={`/learn/${from8}-${to8}/test`}
-              className="btn btn-outline"
-            >
+            <Link href={`/learn/${from8}-${to8}/test`} className="btn btn-outline">
               前回も入れて8首でテスト
             </Link>
           )}
           {show20TestLink && twentyTestLabel && (
-            <Link
-              href={`/learn/${twentyTestRange}/test`}
-              className="btn btn-outline"
-            >
+            <Link href={`/learn/${twentyTestRange}/test`} className="btn btn-outline">
               {twentyTestLabel}
             </Link>
           )}
           {showNextFour && (
-            <Link
-              href={`/learn/${nextFourFrom}-${nextFourTo}/study`}
-              className="btn btn-outline"
-            >
+            <Link href={`/learn/${nextFourFrom}-${nextFourTo}/study`} className="btn btn-outline">
               次の4首に進む
             </Link>
           )}

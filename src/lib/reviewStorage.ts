@@ -5,18 +5,16 @@
 export type ReviewItem =
   | { id: string; type: "range"; poemId: number; range: string }
   | { id: string; type: "all"; poemId: number }
-  | {
-      id: string;
-      type: "kami_tricky";
-      poemId: number;
-      choicePoemIds: number[];
-    }
-  | {
-      id: string;
-      type: "shimo_tricky";
-      poemId: number;
-      choicePoemIds: number[];
-    };
+  | { id: string; type: "kami_tricky"; poemId: number; choicePoemIds: number[] }
+  | { id: string; type: "shimo_tricky"; poemId: number; choicePoemIds: number[] };
+
+/**
+ * Omit を discriminated union で正しく機能させるための分散版
+ * 通常の Omit<Union, K> はユニオンに分配されないため各メンバーに適用する
+ */
+type DistributiveOmit<T, K extends keyof T> = T extends unknown ? Omit<T, K> : never;
+
+export type ReviewItemInput = DistributiveOmit<ReviewItem, "id">;
 
 const STORAGE_KEY = "hyakunin_review_list";
 
@@ -40,16 +38,15 @@ function setStored(items: ReviewItem[]) {
 }
 
 /** 同一問題のキー（重複追加防止用） */
-function itemKey(item: Omit<ReviewItem, "id">): string {
+function itemKey(item: ReviewItemInput): string {
   switch (item.type) {
     case "range":
-      return `range:${item.poemId}:${(item as unknown as { range: string }).range}`;
+      return `range:${item.poemId}:${item.range}`;
     case "all":
       return `all:${item.poemId}`;
-    default: {
-      const t = item as unknown as { type: string; poemId: number; choicePoemIds: number[] };
-      return `${t.type}:${t.poemId}:${t.choicePoemIds.join(",")}`;
-    }
+    case "kami_tricky":
+    case "shimo_tricky":
+      return `${item.type}:${item.poemId}:${item.choicePoemIds.join(",")}`;
   }
 }
 
@@ -58,11 +55,11 @@ export function getReviewList(): ReviewItem[] {
 }
 
 export function addToReviewList(
-  item: Omit<ReviewItem, "id">
+  item: ReviewItemInput
 ): void {
   const list = getStored();
   const key = itemKey(item);
-  if (list.some((x) => itemKey(x as Omit<ReviewItem, "id">) === key)) return;
+  if (list.some((x) => itemKey(x) === key)) return;
   const id =
     typeof crypto !== "undefined" && crypto.randomUUID
       ? crypto.randomUUID()

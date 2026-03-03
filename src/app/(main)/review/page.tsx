@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { Poem } from "@/types/poem";
-import { playOnce, playSequence, stopAll } from "@/lib/audio";
+import { stopAll } from "@/lib/audio";
 import { findGoroRange } from "@/lib/goro";
+import { useGoroPlayback } from "@/lib/useGoroPlayback";
 import {
   getReviewList,
   removeFromReviewList,
@@ -134,61 +135,50 @@ function ReviewRangeOrAll({
   onNext: () => void;
 }) {
   const [poems, setPoems] = useState<Poem[]>([]);
+  const [fetchError, setFetchError] = useState(false);
   const [choices, setChoices] = useState<{ text: string; poemId: number }[]>([]);
   const [selectedCorrect, setSelectedCorrect] = useState(false);
   const [clickedWrong, setClickedWrong] = useState<string[]>([]);
   const [showGoro, setShowGoro] = useState(false);
   const [goroPlayKey, setGoroPlayKey] = useState(0);
-  const [goroHighlightPhase, setGoroHighlightPhase] = useState<"none" | "kami" | "shimo">("none");
+
+  const current = poems.find((p) => p.id === poemId) ?? null;
+
+  const { goroHighlightPhase } = useGoroPlayback({
+    current,
+    showGoro,
+    goroPlayKey,
+    selectedCorrect,
+  });
 
   useEffect(() => {
-    if (type === "all") {
-      fetch("/api/poems?from=1&to=100")
-        .then((r) => r.json())
-        .then((data: Poem[]) => setPoems(data));
-    } else if (range) {
-      const [from, to] = range.split("-").map(Number);
-      fetch(`/api/poems?from=${from}&to=${to}`)
-        .then((r) => r.json())
-        .then((data: Poem[]) => setPoems(data));
-    }
+    const url =
+      type === "all"
+        ? "/api/poems?from=1&to=100"
+        : range
+          ? `/api/poems?from=${range.split("-")[0]}&to=${range.split("-")[1]}`
+          : null;
+    if (!url) return;
+    fetch(url)
+      .then((r) => {
+        if (!r.ok) throw new Error("取得に失敗しました");
+        return r.json();
+      })
+      .then((data: Poem[]) => setPoems(data))
+      .catch(() => setFetchError(true));
   }, [type, range]);
 
   useEffect(() => {
     if (poems.length === 0) return;
-    const current = poems.find((p) => p.id === poemId);
-    if (!current) return;
-    const others = poems.filter((p) => p.id !== current.id);
+    const poem = poems.find((p) => p.id === poemId);
+    if (!poem) return;
+    const others = poems.filter((p) => p.id !== poem.id);
     const wrong = shuffle(others).slice(0, 3).map((p) => ({ text: p.shimo_hiragana, poemId: p.id }));
-    setChoices(
-      shuffle([{ text: current.shimo_hiragana, poemId: current.id }, ...wrong])
-    );
+    setChoices(shuffle([{ text: poem.shimo_hiragana, poemId: poem.id }, ...wrong]));
   }, [poems, poemId]);
 
-  const current = poems.find((p) => p.id === poemId);
   const showKamiHighlight = selectedCorrect && (goroHighlightPhase === "kami" || goroHighlightPhase === "shimo");
   const showShimoHighlight = selectedCorrect && goroHighlightPhase === "shimo";
-
-  useEffect(() => {
-    if (!showGoro || !current || goroPlayKey <= 0) return;
-    if (!selectedCorrect) return;
-    setGoroHighlightPhase("kami");
-    const run = async () => {
-      if (current.kami_goro_audio_url) await playOnce(current.kami_goro_audio_url);
-      setGoroHighlightPhase("shimo");
-      if (current.shimo_goro_audio_url) await playOnce(current.shimo_goro_audio_url);
-    };
-    run();
-  }, [goroPlayKey, showGoro, current?.id, selectedCorrect]);
-
-  useEffect(() => {
-    if (!showGoro || !current || goroPlayKey <= 0) return;
-    if (selectedCorrect) return;
-    const urls: string[] = [];
-    if (current.kami_goro_audio_url) urls.push(current.kami_goro_audio_url);
-    if (current.shimo_goro_audio_url) urls.push(current.shimo_goro_audio_url);
-    if (urls.length > 0) playSequence(urls);
-  }, [goroPlayKey, showGoro, current, selectedCorrect]);
 
   const handleAnswer = (answer: string) => {
     if (selectedCorrect) return;
@@ -202,6 +192,17 @@ function ReviewRangeOrAll({
       setGoroPlayKey((k) => k + 1);
     }
   };
+
+  if (fetchError) {
+    return (
+      <div className="p-6 rounded-xl bg-base-200">
+        <p className="text-error mb-4">問題データの取得に失敗しました</p>
+        <button type="button" className="btn btn-outline btn-sm" onClick={onNext}>
+          次の問題へ
+        </button>
+      </div>
+    );
+  }
 
   if (!current || choices.length === 0) {
     return <span className="loading loading-spinner" />;
@@ -279,6 +280,7 @@ function ReviewTricky({
   onNext: () => void;
 }) {
   const [poemMap, setPoemMap] = useState<Map<number, Poem>>(new Map());
+  const [fetchError, setFetchError] = useState(false);
   const [fixedChoices, setFixedChoices] = useState<{ id: number; text: string }[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
@@ -286,62 +288,51 @@ function ReviewTricky({
   const [clickedWrongIds, setClickedWrongIds] = useState<number[]>([]);
   const [showGoro, setShowGoro] = useState(false);
   const [goroPlayKey, setGoroPlayKey] = useState(0);
-  const [goroHighlightPhase, setGoroHighlightPhase] = useState<"none" | "kami" | "shimo">("none");
+
+  const currentPoem = poemMap.get(poemId) ?? null;
+  const selectedCorrect = isCorrect === true || hasShownCorrect;
+
+  const { goroHighlightPhase } = useGoroPlayback({
+    current: currentPoem,
+    showGoro,
+    goroPlayKey,
+    selectedCorrect,
+  });
 
   useEffect(() => {
     Promise.all(
       choicePoemIds.map((id) =>
         fetch(`/api/poems?from=${id}&to=${id}`)
-          .then((r) => r.json())
+          .then((r) => {
+            if (!r.ok) throw new Error("取得に失敗しました");
+            return r.json();
+          })
           .then((data: Poem[]) => data[0])
       )
-    ).then((poems) => {
-      const map = new Map<number, Poem>();
-      poems.filter(Boolean).forEach((p) => map.set(p.id, p));
-      setPoemMap(map);
-      setFixedChoices(
-        shuffle(
-          poems
-            .filter(Boolean)
-            .map((p) => ({
-              id: p.id,
-              text: type === "kami_tricky" ? p.kami_hiragana : p.shimo_hiragana,
-            }))
-        )
-      );
-    });
+    )
+      .then((poems) => {
+        const map = new Map<number, Poem>();
+        poems.filter(Boolean).forEach((p) => map.set(p.id, p));
+        setPoemMap(map);
+        setFixedChoices(
+          shuffle(
+            poems
+              .filter(Boolean)
+              .map((p) => ({
+                id: p.id,
+                text: type === "kami_tricky" ? p.kami_hiragana : p.shimo_hiragana,
+              }))
+          )
+        );
+      })
+      .catch(() => setFetchError(true));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [choicePoemIds.join(","), type]);
 
-  const currentPoem = poemMap.get(poemId);
   const choices = fixedChoices;
   const showKamiHighlight =
-    (isCorrect === true || hasShownCorrect) &&
-    (goroHighlightPhase === "kami" || goroHighlightPhase === "shimo");
-  const showShimoHighlight =
-    (isCorrect === true || hasShownCorrect) && goroHighlightPhase === "shimo";
-
-  useEffect(() => {
-    if (!showGoro || !currentPoem || goroPlayKey <= 0) return;
-    const isCorrectState = isCorrect === true || hasShownCorrect;
-    if (!isCorrectState) return;
-    setGoroHighlightPhase("kami");
-    const run = async () => {
-      if (currentPoem.kami_goro_audio_url) await playOnce(currentPoem.kami_goro_audio_url);
-      setGoroHighlightPhase("shimo");
-      if (currentPoem.shimo_goro_audio_url) await playOnce(currentPoem.shimo_goro_audio_url);
-    };
-    run();
-  }, [goroPlayKey, showGoro, currentPoem?.id, isCorrect, hasShownCorrect]);
-
-  useEffect(() => {
-    if (!showGoro || !currentPoem || goroPlayKey <= 0) return;
-    const isCorrectState = isCorrect === true || hasShownCorrect;
-    if (isCorrectState) return;
-    const urls: string[] = [];
-    if (currentPoem.kami_goro_audio_url) urls.push(currentPoem.kami_goro_audio_url);
-    if (currentPoem.shimo_goro_audio_url) urls.push(currentPoem.shimo_goro_audio_url);
-    if (urls.length > 0) playSequence(urls);
-  }, [goroPlayKey, showGoro, currentPoem, isCorrect, hasShownCorrect]);
+    selectedCorrect && (goroHighlightPhase === "kami" || goroHighlightPhase === "shimo");
+  const showShimoHighlight = selectedCorrect && goroHighlightPhase === "shimo";
 
   const handleAnswer = (id: number) => {
     const correct = id === poemId;
@@ -365,6 +356,17 @@ function ReviewTricky({
       setClickedWrongIds((prev) => [...prev, id]);
     }
   };
+
+  if (fetchError) {
+    return (
+      <div className="p-6 rounded-xl bg-base-200">
+        <p className="text-error mb-4">問題データの取得に失敗しました</p>
+        <button type="button" className="btn btn-outline btn-sm" onClick={onNext}>
+          次の問題へ
+        </button>
+      </div>
+    );
+  }
 
   if (!currentPoem || choices.length === 0) {
     return <span className="loading loading-spinner" />;
@@ -392,9 +394,9 @@ function ReviewTricky({
                   key={choice.id}
                   text={choice.text}
                   onClick={() => handleAnswer(choice.id)}
-                  disabled={isCorrect === true || hasShownCorrect}
+                  disabled={selectedCorrect}
                   result={
-                    (isCorrect === true || hasShownCorrect) && choice.id === poemId
+                    selectedCorrect && choice.id === poemId
                       ? "correct"
                       : clickedWrongIds.includes(choice.id)
                         ? "wrong"
@@ -439,9 +441,9 @@ function ReviewTricky({
                   key={choice.id}
                   text={choice.text}
                   onClick={() => handleAnswer(choice.id)}
-                  disabled={isCorrect === true || hasShownCorrect}
+                  disabled={selectedCorrect}
                   result={
-                    (isCorrect === true || hasShownCorrect) && choice.id === poemId
+                    selectedCorrect && choice.id === poemId
                       ? "correct"
                       : clickedWrongIds.includes(choice.id)
                         ? "wrong"
@@ -462,7 +464,7 @@ function ReviewTricky({
           </p>
         </div>
       )}
-      {(isCorrect === true || hasShownCorrect || isCorrect === false) && (
+      {(selectedCorrect || isCorrect === false) && (
         <div className="flex justify-center gap-4">
           <button type="button" className="btn btn-outline" onClick={onRemove}>
             復習からはずす
