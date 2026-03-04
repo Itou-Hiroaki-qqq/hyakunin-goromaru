@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { MutableRefObject } from "react";
 import type { Poem } from "@/types/poem";
-import { playOnce, playSequence } from "@/lib/audio";
+import { playOnce, playSequence, stopAll } from "@/lib/audio";
 
 type GoroHighlightPhase = "none" | "kami" | "shimo";
 
@@ -42,6 +42,9 @@ export function useGoroPlayback({
     setGoroHighlightPhase("kami");
     const run = async () => {
       try {
+        // 上の句音声が再生中・ロード中の場合にここで止める
+        // （handleAnswer では止めないことで、音声ロード中クリックによる無音を防ぐ）
+        stopAll();
         if (currentGoroPoemIdRef && currentGoroPoemIdRef.current !== poemId) return;
         if (current.kami_goro_audio_url) await playOnce(current.kami_goro_audio_url);
         if (currentGoroPoemIdRef && currentGoroPoemIdRef.current !== poemId) return;
@@ -62,7 +65,10 @@ export function useGoroPlayback({
     const urls: string[] = [];
     if (current.kami_goro_audio_url) urls.push(current.kami_goro_audio_url);
     if (current.shimo_goro_audio_url) urls.push(current.shimo_goro_audio_url);
-    if (urls.length > 0) playSequence(urls);
+    if (urls.length > 0) {
+      stopAll(); // 上の句音声が再生中・ロード中の場合にここで止める
+      playSequence(urls);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [goroPlayKey, showGoro, current, selectedCorrect]);
 

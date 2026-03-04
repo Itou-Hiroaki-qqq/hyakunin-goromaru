@@ -58,6 +58,15 @@ export default function Home() {
             実践問題
           </button>
         )}
+        {isAllCleared ? (
+          <Link href="/battle" className="btn btn-outline btn-lg">
+            コンピューター対戦
+          </Link>
+        ) : (
+          <button type="button" className="btn btn-outline btn-lg" disabled>
+            コンピューター対戦
+          </button>
+        )}
       </div>
       <footer className="mt-auto py-6 text-sm text-base-content/60">
         All Rights Reserved 2026 © Hiroaki Ito

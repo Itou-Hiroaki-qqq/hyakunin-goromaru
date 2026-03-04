@@ -150,7 +150,8 @@ export default function TestRangePage() {
 
   const handleAnswer = (answer: string) => {
     if (selectedCorrect) return;
-    stopAll();
+    // stopAll() はここでは呼ばない。音声ロード中にクリックすると無音になるため。
+    // 語呂音声の再生直前（useGoroPlayback 内）で stopAll() を呼ぶ。
     if (answer === current?.shimo_hiragana) {
       setSelectedCorrect(true);
       setScore((s) => s + 1);

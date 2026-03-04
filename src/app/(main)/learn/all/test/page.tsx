@@ -151,7 +151,8 @@ export default function AllTestPage() {
 
   const handleAnswer = (answer: string) => {
     if (selectedCorrect) return;
-    stopAll(); // 上の句の音声再生中でもストップし、語呂解説＆音声に切り替える
+    // stopAll() はここでは呼ばない。音声ロード中にクリックすると無音になるため。
+    // 語呂音声の再生直前（useGoroPlayback 内）で stopAll() を呼ぶ。
     if (answer === current?.shimo_hiragana) {
       setSelectedCorrect(true);
       setScore((s) => s + 1);
