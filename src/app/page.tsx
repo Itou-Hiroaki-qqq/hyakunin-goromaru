@@ -8,10 +8,22 @@ import { getReviewList } from "@/lib/reviewStorage";
 export default function Home() {
   const pathname = usePathname();
   const [hasReview, setHasReview] = useState(false);
+  const [isAllCleared, setIsAllCleared] = useState(false);
 
   useEffect(() => {
     setHasReview(getReviewList().length > 0);
   }, [pathname]);
+
+  useEffect(() => {
+    fetch("/api/test-clears")
+      .then((res) => res.json())
+      .then((data: { clears: { test_type: string; range: string }[] }) => {
+        setIsAllCleared(
+          data.clears?.some((c) => c.test_type === "100首" && c.range === "all") ?? false
+        );
+      })
+      .catch(() => {});
+  }, []);
 
   return (
     <main className="flex-1 flex flex-col items-center justify-center p-6">
@@ -31,6 +43,19 @@ export default function Home() {
         ) : (
           <button type="button" className="btn btn-outline btn-lg" disabled>
             復習
+          </button>
+        )}
+        <hr className="border-base-300" />
+        <p className="text-center text-xs text-base-content/40">
+          以下は「100首ぜんぶテスト」をノーミスでクリアすると解放されます
+        </p>
+        {isAllCleared ? (
+          <Link href="/jissen" className="btn btn-outline btn-lg">
+            実践問題
+          </Link>
+        ) : (
+          <button type="button" className="btn btn-outline btn-lg" disabled>
+            実践問題
           </button>
         )}
       </div>
