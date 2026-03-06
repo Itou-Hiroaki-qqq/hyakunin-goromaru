@@ -114,7 +114,7 @@ function ResultScreen({
 
         {/* ボタン */}
         <div
-          className={`flex flex-col gap-3 transition-opacity duration-700 ${phase >= 6 ? "opacity-100" : "opacity-0"}`}
+          className={`flex flex-col gap-3 transition-opacity duration-700 ${phase >= 6 ? "opacity-100" : "opacity-0 pointer-events-none"}`}
           onClick={(e) => e.stopPropagation()}
         >
           <button type="button" className="btn btn-primary btn-lg" onClick={onRestart}>
